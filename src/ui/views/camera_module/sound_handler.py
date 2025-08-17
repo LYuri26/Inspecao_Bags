@@ -83,8 +83,9 @@ class SoundHandler(QObject):
         """Reseta o cooldown quando o timer expira"""
         pass  # Apenas para completar o ciclo do timer
 
-    def trigger_alert(self, message):
+    def trigger_alert(self, message, defect_key=None):
         """Dispara um alerta (interface pública)"""
+        # No futuro você pode usar defect_key para evitar repetição de alertas
         self.alert_signal.emit(message)
 
     def cleanup(self):
