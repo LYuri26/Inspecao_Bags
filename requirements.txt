@@ -1,5 +1,5 @@
 # --------------------------------------------
-# 🚀 Pacotes Essenciais para GPU NVIDIA
+# Pacotes Essenciais para GPU NVIDIA
 # --------------------------------------------
 # PyTorch com CUDA 13.0 (compatível com seu driver 580.97)
 torch==2.2.1+cu130
@@ -11,14 +11,14 @@ torchaudio==2.2.1+cu130
 ultralytics==8.1.0  # Versão mais recente com otimizações para RTX 50xx
 
 # --------------------------------------------
-# 🖥️ Processamento de Imagem e Visão Computacional
+# Processamento de Imagem e Visão Computacional
 # --------------------------------------------
 opencv-python-headless==4.9.0.80  # Versão headless para evitar conflitos com GUI
 albumentations==1.4.0
 imgaug==0.4.0
 
 # --------------------------------------------
-# 📊 Utilidades Numéricas e Gerenciamento
+# Utilidades Numéricas e Gerenciamento
 # --------------------------------------------
 numpy==1.26.4
 nvidia-cudnn-cu13==8.9.5.29  # cuDNN para CUDA 13.0
@@ -27,7 +27,7 @@ nvidia-cuda-nvrtc-cu13==13.0.76
 nvidia-cuda-runtime-cu13==13.0.79
 
 # --------------------------------------------
-# ⚙️ Utilitários do Sistema
+# Utilitários do Sistema
 # --------------------------------------------
 python-dotenv==1.0.0
 PyYAML==6.0
@@ -35,13 +35,13 @@ tqdm==4.66.1  # Para barras de progresso
 onnx==1.15.0  # Para exportação de modelos
 
 # --------------------------------------------
-# 🔍 Verificadores de GPU (opcional)
+# Verificadores de GPU (opcional)
 # --------------------------------------------
 nvidia-ml-py3==7.352.0  # Para monitoramento da GPU
 pynvml==11.5.0  # Interface Python para NVML
 
 # --------------------------------------------
-# 🖼️ Interface Gráfica (se necessário)
+# Interface Gráfica (se necessário)
 # --------------------------------------------
 PyQt5==5.15.10
 PyQt5-sip==12.13.0
