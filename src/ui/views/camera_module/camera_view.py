@@ -216,14 +216,32 @@ class CameraView(BaseCameraUI):
             self.last_bag_seen_time = time.time()
 
     def update_frame(self):
-        """Update display with latest frames (3x3 grid)"""
+        """Atualiza exibição das câmeras (preview + detecção round-robin)."""
         frames = []
+
+        # inicializa índice round-robin
+        if not hasattr(self, "_round_robin_index"):
+            self._round_robin_index = -1
+        self._round_robin_index = (self._round_robin_index + 1) % 9
+
         for i in range(9):
             frame = self.camera_manager.get_latest_frame(i)
-            if frame is not None:
-                frame = process_detection(self, frame)
-            frames.append(frame)
+            if frame is None:
+                frames.append(None)
+                continue
 
+            # sempre gerar preview reduzido (leve para CPU/UI)
+            preview_frame = cv2.resize(frame, (640, 360))
+
+            if i == self._round_robin_index:
+                # roda detecção apenas em uma câmera por ciclo
+                detected_frame = process_detection(self, frame)
+                frames.append(detected_frame)
+            else:
+                # mostra preview sem rodar YOLO
+                frames.append(preview_frame)
+
+        # exibe no grid (3x3)
         self.update_grid_display(frames)
 
     def start_camera(self, camera_id=0):
