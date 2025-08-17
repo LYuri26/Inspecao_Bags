@@ -1,2 +1,5 @@
 .venv/
 .labelImg/
+venv/
+ENV/
+env/
