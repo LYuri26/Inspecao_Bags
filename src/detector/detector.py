@@ -38,7 +38,14 @@ class BagDetector:
     def _load_model(self, model_path: Union[str, Path]) -> YOLO:
         """Carrega o modelo YOLO personalizado"""
         try:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            if torch.cuda.is_available():
+                major, minor = torch.cuda.get_device_capability()
+                if major >= 12:  # placas muito novas ainda sem suporte
+                    device = "cpu"
+                else:
+                    device = "cuda"
+            else:
+                device = "cpu"
             model = YOLO(model_path).to(device)
             logger.info(f"✅ Modelo carregado em {device.upper()}")
             return model
