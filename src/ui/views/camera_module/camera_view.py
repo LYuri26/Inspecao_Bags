@@ -63,10 +63,105 @@ class CameraView(BaseCameraUI):
         self.current_image = None
 
     def handle_new_frame(self, camera_id, frame):
-        """Recebe frames crus da CameraManager"""
+        """Process new frames received from CameraManager"""
         if frame is None:
             return
-        self.current_image = frame  # guarda último frame da câmera
+
+        try:
+            processed_frame = frame.copy()
+
+            # Check if model is loaded
+            if not self.model or not hasattr(self.model, "model"):
+                cv2.putText(
+                    processed_frame,
+                    "Modelo não carregado",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 0, 255),
+                    2,
+                )
+                self.current_image = processed_frame
+                return
+
+            # Apply detection to the frame
+            results = self.model.model(frame)[0]
+            if not getattr(results, "boxes", None) or len(results.boxes) == 0:
+                self._check_bag_timeout()
+                self.current_image = processed_frame
+                return
+
+            # Process detections
+            policy = (
+                self.active_company.get("policy", {}) if self.active_company else {}
+            )
+            detected_bag = False
+
+            for box, score, cls_id in zip(
+                results.boxes.xyxy, results.boxes.conf, results.boxes.cls
+            ):
+                score = float(score)
+                if score < 0.6:  # Confidence threshold
+                    continue
+
+                class_name = self.model.model.names[int(cls_id)]
+                name_l = class_name.lower()
+                name_d = class_name.capitalize()
+
+                # Bounding box coordinates
+                x1, y1, x2, y2 = map(int, box.cpu().numpy())
+
+                # Update time if bag is detected
+                if name_l == "sacola":
+                    detected_bag = True
+                    self.last_bag_seen_time = time.time()
+
+                # Check company policy
+                if name_l in self.defect_mapping and policy.get(
+                    self.defect_mapping[name_l], False
+                ):
+                    continue
+
+                # Draw bounding box
+                color = self.class_colors.get(name_d, (255, 255, 255))
+                cv2.rectangle(processed_frame, (x1, y1), (x2, y2), color, 2)
+                label = f"{name_d} ({score:.2f})"
+
+                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                cv2.rectangle(
+                    processed_frame, (x1, y1 - th - 10), (x1 + tw + 4, y1), color, -1
+                )
+                cv2.putText(
+                    processed_frame,
+                    label,
+                    (x1 + 2, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (0, 0, 0),
+                    1,
+                )
+
+                # Handle defects
+                if name_l in self.defect_mapping and not policy.get(
+                    self.defect_mapping[name_l], False
+                ):
+                    self._handle_defect_detection(
+                        camera_id, name_d, (x1, y1, x2, y2), processed_frame
+                    )
+
+            # Check for bag change timeout
+            if detected_bag and (time.time() - self.last_bag_seen_time > 15):
+                self.bag_counter += 1
+                self.current_bag_defects.clear()
+                self.last_bag_seen_time = time.time()
+
+            self.current_image = processed_frame
+
+        except Exception as e:
+            logger.error(
+                f"Error processing camera {camera_id} frame: {str(e)}", exc_info=True
+            )
+            self.current_image = frame
 
     def _handle_defect_detection(self, camera_id, defect_name, bbox, frame):
         """Handle detection of a specific defect"""
@@ -121,31 +216,36 @@ class CameraView(BaseCameraUI):
             self.last_bag_seen_time = time.time()
 
     def update_frame(self):
-        """Atualiza exibição em grade (3x3) usando round-robin para detecção"""
+        """Atualiza exibição das câmeras (preview + detecção round-robin)."""
         frames = []
+
+        # inicializa índice round-robin
+        if not hasattr(self, "_round_robin_index"):
+            self._round_robin_index = -1
+        self._round_robin_index = (self._round_robin_index + 1) % 9
+
         for i in range(9):
             frame = self.camera_manager.get_latest_frame(i)
             if frame is None:
                 frames.append(None)
                 continue
 
+            # sempre gerar preview reduzido (leve para CPU/UI)
+            h, w = frame.shape[:2]
+            scale = 640 / max(w, h)  # reduzindo para máx 640px no maior lado
+            new_w, new_h = int(w * scale), int(h * scale)
+            preview_frame = cv2.resize(frame, (new_w, new_h))
+
             if i == self._round_robin_index:
-                # roda detecção apenas em 1 câmera por ciclo
+                # roda detecção apenas em uma câmera por ciclo
                 detected_frame = process_detection(self, frame)
                 frames.append(detected_frame)
-                display_image(self, detected_frame)  # mostra imagem com caixas/labels
             else:
-                # preview leve
-                h, w = frame.shape[:2]
-                preview = cv2.resize(
-                    frame, (w // 4, h // 4), interpolation=cv2.INTER_AREA
-                )
-                frames.append(preview)
+                # mostra preview sem rodar YOLO
+                frames.append(preview_frame)
 
+        # exibe no grid (3x3)
         self.update_grid_display(frames)
-
-        # avança round-robin
-        self._round_robin_index = (self._round_robin_index + 1) % 9
 
     def start_camera(self, camera_id=0):
         """Start capture from a specific camera"""
