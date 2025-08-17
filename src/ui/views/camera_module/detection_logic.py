@@ -118,12 +118,32 @@ def process_detection(self, frame: np.ndarray) -> np.ndarray:
                         f"Defeito detectado: {name_d} (Bag {self.bag_counter})",
                         defect_key=name_l,
                     )
+
+                    # Salva frame anotado
                     save_defect_image(
                         self, annotated_frame, f"bag{self.bag_counter + 1}-{name_l}"
                     )
 
+                    # 🔹 Salva frame original (sem desenho)
+                    orig_frame = self.camera_manager.get_latest_frame(
+                        self.camera_id, raw=True
+                    )
+                    if orig_frame is not None:
+                        from pathlib import Path
+                        import cv2, datetime
+
+                        day_folder = (
+                            Path("cadastros")
+                            / "raw_frames"
+                            / datetime.now().strftime("%d-%m-%Y")
+                        )
+                        day_folder.mkdir(parents=True, exist_ok=True)
+
+                        filename = f"bag{self.bag_counter + 1}-{name_l}-raw.jpg"
+                        cv2.imwrite(str(day_folder / filename), orig_frame)
+
         # Se detectou nova sacola mas passou timeout, troca
-        if detected_bag and (time.time() - self.last_bag_seen_time > 15):
+        if detected_bag and (time.time() - self.last_bag_seen_time > 5):
             self.bag_counter += 1
             self.current_bag_defects.clear()
             self.last_bag_seen_time = time.time()
