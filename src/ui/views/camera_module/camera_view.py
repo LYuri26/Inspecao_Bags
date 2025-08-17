@@ -231,7 +231,10 @@ class CameraView(BaseCameraUI):
                 continue
 
             # sempre gerar preview reduzido (leve para CPU/UI)
-            preview_frame = cv2.resize(frame, (640, 360))
+            h, w = frame.shape[:2]
+            scale = 640 / max(w, h)  # reduzindo para máx 640px no maior lado
+            new_w, new_h = int(w * scale), int(h * scale)
+            preview_frame = cv2.resize(frame, (new_w, new_h))
 
             if i == self._round_robin_index:
                 # roda detecção apenas em uma câmera por ciclo

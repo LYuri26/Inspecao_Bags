@@ -166,8 +166,11 @@ def display_image(self, image: np.ndarray):
     pixmap = QPixmap.fromImage(q_img)
 
     # Define o tamanho real da imagem no QLabel
-    self.camera_label.setPixmap(pixmap)
-    self.camera_label.resize(pixmap.size())
+    self.camera_label.setPixmap(
+        pixmap.scaled(
+            self.camera_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+    )
 
 
 def generate_defect_summary(self, company_name, date_from, date_to):
