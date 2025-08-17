@@ -2,11 +2,11 @@
 # REQUISITOS PARA GPU NVIDIA
 # =======================
 
-# PyTorch + CUDA (instala variante com cu130 automaticamente)
+# PyTorch com CUDA 12.1 (formato correto)
 torch==2.2.1
 torchvision==0.17.1
 torchaudio==2.2.1
---extra-index-url https://download.pytorch.org/whl/cu130
+--extra-index-url https://download.pytorch.org/whl/cu121
 
 # YOLO com suporte a GPU
 ultralytics==8.1.0
