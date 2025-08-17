@@ -156,7 +156,7 @@ def generate_defect_summary(self, company_name, date_from, date_to):
     ).rstrip()
 
     base_dir = Path(__file__).resolve()
-    while base_dir.name != "Inspecao_Sacolas":
+    while base_dir.name != "Inspecao_Bags":
         base_dir = base_dir.parent
 
     cadastros_dir = base_dir / "cadastros"

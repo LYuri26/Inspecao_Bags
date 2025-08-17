@@ -43,7 +43,7 @@ def save_defect_image(self, frame: np.ndarray, defect_type: str):
 
     # Localiza a pasta cadastros na raiz do projeto
     base_dir = Path(__file__).resolve()
-    while base_dir.name != "Inspecao_Sacolas":
+    while base_dir.name != "Inspecao_Bags":
         base_dir = base_dir.parent
     cadastros_dir = base_dir / "cadastros"
 

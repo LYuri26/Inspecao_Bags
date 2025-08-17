@@ -4,10 +4,10 @@ from pathlib import Path
 
 # Caminhos
 PASTA_ENTRADA = Path(
-    "/home/lenon/Documentos/GitHub/Inspecao_Sacolas/dataset_sacolas/baixadas"
+    "/home/lenon/Documentos/GitHub/Inspecao_Bags/dataset_sacolas/baixadas"
 )
 PASTA_SAIDA = Path(
-    "/home/lenon/Documentos/GitHub/Inspecao_Sacolas/dataset_sacolas/images/train"
+    "/home/lenon/Documentos/GitHub/Inspecao_Bags/dataset_sacolas/images/train"
 )
 RESOLUCAO = (640, 480)
 EXTENSAO = ".jpg"

@@ -129,7 +129,7 @@ class ReportsView(QWidget):
 
     def get_all_companies(self):
         base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Sacolas":
+        while base_dir.name != "Inspecao_Bags":
             base_dir = base_dir.parent
         cadastros_dir = base_dir / "cadastros"
 
@@ -337,7 +337,7 @@ class ReportsView(QWidget):
         ).rstrip()
 
         base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Sacolas":
+        while base_dir.name != "Inspecao_Bags":
             base_dir = base_dir.parent
         cadastros_dir = base_dir / "cadastros"
         reports_dir = cadastros_dir / safe_name / "reports"
@@ -436,7 +436,7 @@ class ReportsView(QWidget):
         ).rstrip()
 
         base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Sacolas":
+        while base_dir.name != "Inspecao_Bags":
             base_dir = base_dir.parent
 
         cadastros_dir = base_dir / "cadastros"

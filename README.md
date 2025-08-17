@@ -23,7 +23,7 @@ Desenvolvimento sob demanda de um sistema **industrial de inspeção visual auto
 Organização modular que separa claramente as responsabilidades do sistema, facilitando manutenção, evolução e customização:
 
 ```
-Inspecao_Sacolas/
+Inspecao_Bags/
 ├── .venv/                         # Ambiente virtual Python
 ├── cadastros/                     # Dados de empresas e inspeções
 │   └── Lenon Yuri/                # Pasta de exemplo para empresa
