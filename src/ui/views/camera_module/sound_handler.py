@@ -7,6 +7,7 @@ from collections import deque
 from PyQt5.QtWidgets import (
     QLabel,
 )
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +36,14 @@ class SoundHandler(QObject):
 
     def _load_sound(self):
         """Carrega o arquivo de som único"""
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-        sound_path = os.path.join(base_dir, "assets", "sounds", "defect_alert.wav")
+        base_dir = Path(__file__).resolve()
+        while base_dir.name != "Inspecao_Bags":
+            base_dir = base_dir.parent
 
-        if os.path.exists(sound_path):
-            self.sound = QSound(sound_path)
+        sound_path = base_dir / "assets" / "sounds" / "defect_alert.wav"
+
+        if sound_path.exists():
+            self.sound = QSound(str(sound_path))
             logger.info(f"Som de defeito carregado com sucesso: {sound_path}")
         else:
             logger.warning(f"Arquivo de som não encontrado: {sound_path}")
