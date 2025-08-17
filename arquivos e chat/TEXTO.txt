@@ -1,0 +1,5 @@
+nvidia-smi -q | find "Product Architecture"
+nvidia-smi
+Consulte a tabela oficial: https://pytorch.org/get-started/locally/
+pip install torch==2.2.1 torchvision==0.17.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121
+python -c "import torch; print(f'Dispositivo CUDA disponível: {torch.cuda.is_available()}'); print(f'Nome da GPU: {torch.cuda.get_device_name(0)}')"
