@@ -61,6 +61,25 @@ def instalar_dependencias():
         return False
 
 
+def verificar_gpu():
+    """Verifica se a GPU está disponível e configurada corretamente"""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            logger.info(f"🚀 GPU detectada: {torch.cuda.get_device_name(0)}")
+            logger.info(
+                f"🔧 Memória GPU: {torch.cuda.get_device_properties(0).total_memory/1024**3:.2f} GB"
+            )
+            return True
+        else:
+            logger.warning("⚠️ Nenhuma GPU detectada - O sistema usará CPU")
+            return False
+    except Exception as e:
+        logger.error(f"❌ Erro ao verificar GPU: {str(e)}")
+        return False
+
+
 def executar_aplicacao():
     """Inicia a aplicação principal"""
     python_path = obter_caminho_python()
@@ -104,13 +123,16 @@ def main():
         if not instalar_dependencias():
             return 1
 
+        # Nova verificação de GPU
+        if not verificar_gpu():
+            logger.warning("O desempenho pode ser afetado sem GPU")
+
         if not executar_aplicacao():
             mostrar_comando_manual()
             return 1
 
         logger.info("\n✅ Sistema executado com sucesso!")
         return 0
-
     except Exception as e:
         logger.error(f"❌ Erro fatal: {str(e)}", exc_info=True)
         return 1

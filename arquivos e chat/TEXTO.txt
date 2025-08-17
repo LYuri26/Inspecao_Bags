@@ -1,2 +1,18 @@
-python -m venv .venv-gpu
-.\.venv-gpu\Scripts\activate
+rmdir /s /q .venv  # Windows
+# ou
+rm -rf .venv       # Linux/Mac
+
+
+rmdir /s /q .venv
+python run.py
+
+.venv\Scripts\activate
+python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
+
+nvidia-smi
+
+pip cache purge
+pip install --force-reinstall -r requirements.txt
+
+
+python -m venv --clear .venv
