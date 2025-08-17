@@ -35,21 +35,15 @@ class SoundHandler(QObject):
 
     def _load_sound(self):
         """Carrega o arquivo de som único"""
-        sound_path = os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "assets",
-            "sounds",
-            "defect_alert.wav",
-        )
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+        sound_path = os.path.join(base_dir, "assets", "sounds", "defect_alert.wav")
 
         if os.path.exists(sound_path):
             self.sound = QSound(sound_path)
-            logger.info("Som de defeito carregado com sucesso")
+            logger.info(f"Som de defeito carregado com sucesso: {sound_path}")
         else:
             logger.warning(f"Arquivo de som não encontrado: {sound_path}")
-            self.sound = QSound()  # Objeto vazio para evitar erros
+            self.sound = None
 
     def _handle_alert(self, message):
         """Processa um alerta recebido"""
@@ -69,6 +63,8 @@ class SoundHandler(QObject):
         """Toca o som de alerta"""
         if self.sound:
             self.sound.play()
+        else:
+            logger.warning("Som não carregado, alerta silencioso")
 
     def _show_alert(self, message):
         """Mostra o alerta visual"""
