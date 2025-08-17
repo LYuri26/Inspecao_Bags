@@ -42,12 +42,11 @@ class CameraView(BaseCameraUI):
         self.camera_manager = CameraManager(num_cameras=9)
         self.camera_manager.frame_ready.connect(self.handle_new_frame)
 
-        # Alert configuration
+        # Alert configuration - REMOVED sound_cooldown_secs parameter
         self.sound_handler = SoundHandler(
             alert_layout=self.alert_layout,
             alert_panel=self.alert_panel,
             results_label=self.results_label,
-            sound_cooldown_secs=2,
             parent=self,
         )
 
@@ -56,7 +55,7 @@ class CameraView(BaseCameraUI):
         self.timer.timeout.connect(self.update_frame)
 
         # Paths and counters
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__)), "../../..")
+        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
         self.base_path = os.path.join(BASE_DIR, "cadastros")
         self.bag_counter = 0
         self.last_bag_seen_time = time.time()
