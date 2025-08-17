@@ -26,132 +26,89 @@ from .utils import save_defect_image
 logger = logging.getLogger(__name__)
 
 
-def process_detection(self, frame: np.ndarray) -> np.ndarray:
-    """
-    Processa um frame para detecção de defeitos com:
-    - Registro único por localização aproximada por bag
-    - Sincronização de bag_id entre as 9 câmeras
-    - Troca automática de bag após 15s sem detectar sacola
-    """
+def process_detection(self, frame):
+    """Roda a detecção no frame e retorna imagem anotada"""
     try:
-        annotated_frame = frame.copy()
+        # roda inferência
+        results = self.model.model(frame)[0]
 
-        # Verifica modelo
-        if not self.model or not hasattr(self.model, "model"):
-            cv2.putText(
-                annotated_frame,
-                "Modelo não carregado",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 0, 255),
-                2,
-            )
-            return annotated_frame
+        # se não houver detecção
+        if not getattr(results, "boxes", None) or len(results.boxes) == 0:
+            self._check_bag_timeout()
+            return frame
 
-        # Inferência YOLO
-        result = self.model.model(frame)[0]
-        if not getattr(result, "boxes", None) or len(result.boxes) == 0:
-            # Verifica timeout de troca de bag
-            if time.time() - self.last_bag_seen_time > 15:
-                self.bag_counter += 1
-                self.current_bag_defects.clear()
-                self.last_bag_seen_time = time.time()
-            return annotated_frame
-
+        # cria cópia para anotações
+        annotated = frame.copy()
         policy = self.active_company.get("policy", {}) if self.active_company else {}
-        class_counts = {}
         detected_bag = False
 
         for box, score, cls_id in zip(
-            result.boxes.xyxy, result.boxes.conf, result.boxes.cls
+            results.boxes.xyxy, results.boxes.conf, results.boxes.cls
         ):
             score = float(score)
-            if score < 0.6:
+            if score < 0.6:  # confiança mínima
                 continue
 
             class_name = self.model.model.names[int(cls_id)]
             name_l = class_name.lower()
             name_d = class_name.capitalize()
 
+            # coordenadas da bounding box
             x1, y1, x2, y2 = map(int, box.cpu().numpy())
 
-            # Se detectar sacola, atualiza tempo
+            # atualiza controle de sacola
             if name_l == "sacola":
                 detected_bag = True
                 self.last_bag_seen_time = time.time()
 
-            # Defeito permitido pela política? pula
+            # checa política da empresa (se defeito é aceito, ignora)
             if name_l in self.defect_mapping and policy.get(
                 self.defect_mapping[name_l], False
             ):
                 continue
 
-            # Desenha bounding box
+            # escolhe cor da classe
             color = self.class_colors.get(name_d, (255, 255, 255))
-            class_counts[class_name] = class_counts.get(class_name, 0) + 1
-            label = f"{name_d} #{class_counts[class_name]} ({score:.2f})"
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 3)
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-            cv2.rectangle(
-                annotated_frame, (x1, y1 - th - 10), (x1 + tw + 4, y1), color, -1
-            )
+
+            # desenha bounding box
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
+            label = f"{name_d} ({score:.2f})"
+
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.rectangle(annotated, (x1, y1 - th - 10), (x1 + tw + 4, y1), color, -1)
             cv2.putText(
-                annotated_frame,
+                annotated,
                 label,
                 (x1 + 2, y1 - 5),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
                 (0, 0, 0),
-                2,
+                1,
             )
 
-            # Registro de defeito único por localização aproximada
+            # trata defeito detectado
             if name_l in self.defect_mapping and not policy.get(
                 self.defect_mapping[name_l], False
             ):
-                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                pos_key = (name_l, cx // 20, cy // 20)  # agrupa por blocos de 20px
-                if pos_key not in self.current_bag_defects:
-                    self.current_bag_defects.append(pos_key)
-                    self.sound_handler.trigger_alert(
-                        f"Defeito detectado: {name_d} (Bag {self.bag_counter})",
-                        defect_key=name_l,
-                    )
+                self._handle_defect_detection(
+                    camera_id=getattr(self, "current_camera", 0),
+                    defect_name=name_d,
+                    bbox=(x1, y1, x2, y2),
+                    frame=annotated,
+                )
 
-                    # Salva frame anotado
-                    save_defect_image(
-                        self, annotated_frame, f"bag{self.bag_counter + 1}-{name_l}"
-                    )
-
-                    # 🔹 Salva frame original (sem desenho)
-                    orig_frame = self.camera_manager.get_latest_frame(
-                        self.camera_id, raw=True
-                    )
-                    if orig_frame is not None:
-                        from pathlib import Path
-                        import cv2, datetime
-
-                        day_folder = (
-                            Path("cadastros")
-                            / "raw_frames"
-                            / datetime.now().strftime("%d-%m-%Y")
-                        )
-                        day_folder.mkdir(parents=True, exist_ok=True)
-
-                        filename = f"bag{self.bag_counter + 1}-{name_l}-raw.jpg"
-                        cv2.imwrite(str(day_folder / filename), orig_frame)
-
-        # Se detectou nova sacola mas passou timeout, troca
-        if detected_bag and (time.time() - self.last_bag_seen_time > 5):
+        # timeout de troca de sacola
+        if detected_bag and (time.time() - self.last_bag_seen_time > 15):
             self.bag_counter += 1
             self.current_bag_defects.clear()
             self.last_bag_seen_time = time.time()
 
-        return annotated_frame
+        return annotated
 
     except Exception as e:
-        logger.error(f"[process_detection] Erro no processamento: {e}", exc_info=True)
+        logger.error(
+            f"[process_detection] Erro no processamento: {str(e)}", exc_info=True
+        )
         return frame
 
 
