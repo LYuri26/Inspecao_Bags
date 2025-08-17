@@ -1,0 +1,15 @@
+path: ./dataset_sacolas
+train: images/train
+val: images/val
+
+# Number of classes
+nc: 6
+
+# Class names
+names:
+  0: Sacola
+  1: Rasgo
+  2: Corte
+  3: Sujeira
+  4: Mancha
+  5: Descostura

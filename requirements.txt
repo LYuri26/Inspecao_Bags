@@ -1,0 +1,15 @@
+# Bibliotecas principais
+numpy==1.26.4
+torch==2.2.1+cpu
+torchvision==0.17.1+cpu
+opencv-python-headless==4.9.0.80
+ultralytics==8.0.196
+python-dotenv==1.0.0
+PyYAML==6.0
+
+# Fonte PyTorch CPU (somente para torch e torchvision)
+--extra-index-url https://download.pytorch.org/whl/cpu
+PyQt5==5.15.9
+PyQt5-sip==12.12.1
+albumentations==1.4.0
+imgaug

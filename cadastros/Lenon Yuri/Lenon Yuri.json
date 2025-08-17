@@ -1,0 +1,25 @@
+{
+    "address": {
+        "country": "Brasil",
+        "district": "Centro",
+        "number": "38",
+        "state": "MG",
+        "street": "Praça Afonso Pena"
+    },
+    "cnpj": "93.097.928/0001-17",
+    "contact": {
+        "cep": "38010-100",
+        "email": "lenonyurisilva26@gmail.com",
+        "mobile": "(31) 9 8718-4793",
+        "phone": "(31) 9871-8479"
+    },
+    "industry": "Informática",
+    "name": "Lenon Yuri",
+    "policy": {
+        "aceita_cortes": false,
+        "aceita_descosturas": false,
+        "aceita_manchas": false,
+        "aceita_rasgos": false,
+        "aceita_sujeiras": true
+    }
+}

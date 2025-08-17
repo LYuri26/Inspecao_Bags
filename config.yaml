@@ -1,0 +1,17 @@
+sistema:
+  versao: "1.0.0"
+  debug: false
+
+modelo:
+  confianca_minima: 0.6
+  classes:
+    - Rasgo
+    - Corte
+    - Sujeira
+    - Mancha
+    - Descostura
+
+empresa:
+  politicas:
+    aceita_rasgos: true
+    aceita_manchas: false
