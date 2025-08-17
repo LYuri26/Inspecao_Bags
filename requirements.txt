@@ -1,47 +1,29 @@
-# --------------------------------------------
+# requirements.txt (versão simplificada)
 # Pacotes Essenciais para GPU NVIDIA
-# --------------------------------------------
-# PyTorch com CUDA 13.0 (compatível com seu driver 580.97)
 torch==2.2.1+cu130
 torchvision==0.17.1+cu130
 torchaudio==2.2.1+cu130
 --extra-index-url https://download.pytorch.org/whl/cu130
 
-# YOLO com suporte a GPU Blackwell
-ultralytics==8.1.0  # Versão mais recente com otimizações para RTX 50xx
+# YOLO com suporte a GPU
+ultralytics==8.1.0
 
-# --------------------------------------------
-# Processamento de Imagem e Visão Computacional
-# --------------------------------------------
-opencv-python-headless==4.9.0.80  # Versão headless para evitar conflitos com GUI
+# Processamento de Imagem
+opencv-python-headless==4.9.0.80
 albumentations==1.4.0
 imgaug==0.4.0
 
-# --------------------------------------------
-# Utilidades Numéricas e Gerenciamento
-# --------------------------------------------
+# Utilitários
 numpy==1.26.4
-nvidia-cudnn-cu13==8.9.5.29  # cuDNN para CUDA 13.0
-nvidia-cublas-cu13==12.1.3.1
-nvidia-cuda-nvrtc-cu13==13.0.76
-nvidia-cuda-runtime-cu13==13.0.79
-
-# --------------------------------------------
-# Utilitários do Sistema
-# --------------------------------------------
 python-dotenv==1.0.0
 PyYAML==6.0
-tqdm==4.66.1  # Para barras de progresso
-onnx==1.15.0  # Para exportação de modelos
+tqdm==4.66.1
+onnx==1.15.0
 
-# --------------------------------------------
-# Verificadores de GPU (opcional)
-# --------------------------------------------
-nvidia-ml-py3==7.352.0  # Para monitoramento da GPU
-pynvml==11.5.0  # Interface Python para NVML
+# Verificadores de GPU
+nvidia-ml-py3==7.352.0
+pynvml==11.5.0
 
-# --------------------------------------------
-# Interface Gráfica (se necessário)
-# --------------------------------------------
+# Interface Gráfica
 PyQt5==5.15.10
 PyQt5-sip==12.13.0
