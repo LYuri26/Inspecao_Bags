@@ -116,7 +116,7 @@ class CompanyForm(QWidget):
     def check_duplicate_cnpj(self, cnpj):
         """Verifica se já existe uma empresa com o mesmo CNPJ cadastrado."""
         base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Sacolas":
+        while base_dir.name != "Inspecao_Bags":
             base_dir = base_dir.parent
 
         cadastros_dir = base_dir / "cadastros"
@@ -224,7 +224,7 @@ class CompanyForm(QWidget):
 
         # Caminho do diretório de cadastro
         base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Sacolas":
+        while base_dir.name != "Inspecao_Bags":
             base_dir = base_dir.parent
 
         empresa_dir = base_dir / "cadastros" / name

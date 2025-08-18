@@ -42,7 +42,7 @@ class CameraView(BaseCameraUI):
         self.camera_manager = CameraManager(num_cameras=9)
         self.camera_manager.frame_ready.connect(self.handle_new_frame)
 
-        # Alert configuration - REMOVED sound_cooldown_secs parameter
+        # Alert configuration
         self.sound_handler = SoundHandler(
             alert_layout=self.alert_layout,
             alert_panel=self.alert_panel,
@@ -59,112 +59,56 @@ class CameraView(BaseCameraUI):
         self.base_path = os.path.join(BASE_DIR, "cadastros")
         self.bag_counter = 0
         self.last_bag_seen_time = time.time()
-        self.current_bag_defects = []  # list with (defect, x, y)
+        self.current_bag_defects = []
         self.current_image = None
 
     def handle_new_frame(self, camera_id, frame):
-        """Process new frames received from CameraManager"""
+        """Processa novos frames recebidos do CameraManager"""
         if frame is None:
             return
 
         try:
-            processed_frame = frame.copy()
-
-            # Check if model is loaded
-            if not self.model or not hasattr(self.model, "model"):
-                cv2.putText(
-                    processed_frame,
-                    "Modelo não carregado",
-                    (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 0, 255),
-                    2,
-                )
-                self.current_image = processed_frame
-                return
-
-            # Apply detection to the frame
-            results = self.model.model(frame)[0]
-            if not getattr(results, "boxes", None) or len(results.boxes) == 0:
-                self._check_bag_timeout()
-                self.current_image = processed_frame
-                return
-
-            # Process detections
-            policy = (
-                self.active_company.get("policy", {}) if self.active_company else {}
-            )
-            detected_bag = False
-
-            for box, score, cls_id in zip(
-                results.boxes.xyxy, results.boxes.conf, results.boxes.cls
-            ):
-                score = float(score)
-                if score < 0.6:  # Confidence threshold
-                    continue
-
-                class_name = self.model.model.names[int(cls_id)]
-                name_l = class_name.lower()
-                name_d = class_name.capitalize()
-
-                # Bounding box coordinates
-                x1, y1, x2, y2 = map(int, box.cpu().numpy())
-
-                # Update time if bag is detected
-                if name_l == "sacola":
-                    detected_bag = True
-                    self.last_bag_seen_time = time.time()
-
-                # Check company policy
-                if name_l in self.defect_mapping and policy.get(
-                    self.defect_mapping[name_l], False
-                ):
-                    continue
-
-                # Draw bounding box
-                color = self.class_colors.get(name_d, (255, 255, 255))
-                cv2.rectangle(processed_frame, (x1, y1), (x2, y2), color, 2)
-                label = f"{name_d} ({score:.2f})"
-
-                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-                cv2.rectangle(
-                    processed_frame, (x1, y1 - th - 10), (x1 + tw + 4, y1), color, -1
-                )
-                cv2.putText(
-                    processed_frame,
-                    label,
-                    (x1 + 2, y1 - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 0, 0),
-                    1,
-                )
-
-                # Handle defects
-                if name_l in self.defect_mapping and not policy.get(
-                    self.defect_mapping[name_l], False
-                ):
-                    self._handle_defect_detection(
-                        camera_id, name_d, (x1, y1, x2, y2), processed_frame
-                    )
-
-            # Check for bag change timeout
-            if detected_bag and (time.time() - self.last_bag_seen_time > 15):
-                self.bag_counter += 1
-                self.current_bag_defects.clear()
-                self.last_bag_seen_time = time.time()
-
-            self.current_image = processed_frame
-
+            # Usa a função unificada de processamento
+            self.current_image = process_detection(self, frame, camera_id)
         except Exception as e:
             logger.error(
                 f"Error processing camera {camera_id} frame: {str(e)}", exc_info=True
             )
             self.current_image = frame
 
+    def update_frame(self):
+        """Atualiza exibição das câmeras com detecção em tempo real"""
+        frames = []
+
+        for i in range(9):
+            frame = self.camera_manager.get_latest_frame(i)
+            if frame is None:
+                frames.append(None)
+                continue
+
+            # Processa detecção em todos os frames
+            detected_frame = process_detection(self, frame, i)
+
+            # Gera preview reduzido para exibição
+            h, w = detected_frame.shape[:2]
+            scale = 640 / max(w, h)
+            new_w, new_h = int(w * scale), int(h * scale)
+            preview_frame = cv2.resize(detected_frame, (new_w, new_h))
+            frames.append(preview_frame)
+
+        # exibe no grid (3x3)
+        self.update_grid_display(frames)
+
     def _handle_defect_detection(self, camera_id, defect_name, bbox, frame):
         """Handle detection of a specific defect"""
+        # Verifica política da empresa antes de processar
+        policy = self.active_company.get("policy", {}) if self.active_company else {}
+        defect_key = self.defect_mapping.get(defect_name.lower())
+
+        if defect_key and policy.get(defect_key, False):
+            logger.debug(f"Defeito {defect_name} aceito pela política - ignorando")
+            return
+
         x1, y1, x2, y2 = bbox
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
 
@@ -179,34 +123,52 @@ class CameraView(BaseCameraUI):
                 f"Defeito detectado: {defect_name} (Câmera {camera_id+1}, Sacola {self.bag_counter+1})"
             )
 
-            # Save defect image
-            self._save_defect_image(frame, defect_name.lower())
+            # Save defect image only if not accepted by policy
+            if not (defect_key and policy.get(defect_key, False)):
+                self._save_defect_image(frame, defect_name.lower(), camera_id)
 
-    def _save_defect_image(self, frame, defect_type):
-        """Save image of detected defect"""
+    def _save_defect_image(self, frame, defect_type, camera_id):
+        """Salva imagem anotada com defeito no formato compatível com reports.py"""
         if not self.active_company:
-            return
+            return None
 
         try:
-            company_name = self.active_company["name"]
-            safe_name = "".join(
-                c for c in company_name if c.isalnum() or c in (" ", "-", "_")
-            ).rstrip()
+            # Garante que a pasta existe
+            reports_dir = self._ensure_reports_folder()
+            if not reports_dir:
+                return None
 
-            base_dir = Path(__file__).resolve()
-            while base_dir.name != "Inspecao_Bags":
-                base_dir = base_dir.parent
-
-            reports_dir = base_dir / "cadastros" / safe_name / "reports"
+            # Pasta do dia atual
             day_folder = reports_dir / datetime.now().strftime("%d-%m-%Y")
-            day_folder.mkdir(parents=True, exist_ok=True)
+            day_folder.mkdir(exist_ok=True)
 
+            # Nome do arquivo no formato: timestamp-bagX-defeito-cameraY.jpg
             timestamp = datetime.now().strftime("%H-%M-%S")
-            filename = f"{timestamp}-bag{self.bag_counter+1}-{defect_type}.jpg"
-            cv2.imwrite(str(day_folder / filename), frame)
+            filename = f"{timestamp}-bag{self.bag_counter}-{defect_type}-camera{camera_id+1}.jpg"
+            filepath = day_folder / filename
+
+            # Salva a imagem
+            cv2.imwrite(str(filepath), frame)
+            logger.info(f"Imagem de defeito salva em: {filepath}")
+
+            # Cria/atualiza arquivo de log
+            log_file = day_folder / "defects_log.txt"
+            with open(log_file, "a", encoding="utf-8") as f:
+                log_entry = (
+                    f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')} | "
+                    f"Empresa: {self.active_company['name']} | "
+                    f"Câmera: {camera_id+1} | "
+                    f"Defeito: {defect_type} | "
+                    f"Sacola: {self.bag_counter} | "
+                    f"Arquivo: {filename}\n"
+                )
+                f.write(log_entry)
+
+            return str(filepath)
 
         except Exception as e:
-            logger.error(f"Error saving defect image: {str(e)}")
+            logger.error(f"Erro ao salvar imagem do defeito: {str(e)}", exc_info=True)
+            return None
 
     def _check_bag_timeout(self):
         """Check if bag needs to be changed due to timeout"""
@@ -216,13 +178,8 @@ class CameraView(BaseCameraUI):
             self.last_bag_seen_time = time.time()
 
     def update_frame(self):
-        """Atualiza exibição das câmeras (preview + detecção round-robin)."""
+        """Atualiza exibição das câmeras com detecção em tempo real"""
         frames = []
-
-        # inicializa índice round-robin
-        if not hasattr(self, "_round_robin_index"):
-            self._round_robin_index = -1
-        self._round_robin_index = (self._round_robin_index + 1) % 9
 
         for i in range(9):
             frame = self.camera_manager.get_latest_frame(i)
@@ -230,19 +187,15 @@ class CameraView(BaseCameraUI):
                 frames.append(None)
                 continue
 
-            # sempre gerar preview reduzido (leve para CPU/UI)
-            h, w = frame.shape[:2]
-            scale = 640 / max(w, h)  # reduzindo para máx 640px no maior lado
-            new_w, new_h = int(w * scale), int(h * scale)
-            preview_frame = cv2.resize(frame, (new_w, new_h))
+            # Processa detecção em todos os frames
+            detected_frame = process_detection(self, frame, i)
 
-            if i == self._round_robin_index:
-                # roda detecção apenas em uma câmera por ciclo
-                detected_frame = process_detection(self, frame)
-                frames.append(detected_frame)
-            else:
-                # mostra preview sem rodar YOLO
-                frames.append(preview_frame)
+            # Gera preview reduzido para exibição
+            h, w = detected_frame.shape[:2]
+            scale = 640 / max(w, h)
+            new_w, new_h = int(w * scale), int(h * scale)
+            preview_frame = cv2.resize(detected_frame, (new_w, new_h))
+            frames.append(preview_frame)
 
         # exibe no grid (3x3)
         self.update_grid_display(frames)
@@ -252,6 +205,9 @@ class CameraView(BaseCameraUI):
         if camera_id is None:
             self.start_all_cameras()
             return
+
+        # Garante que a pasta reports existe antes de iniciar
+        self._ensure_reports_folder()
 
         if not self.camera_manager.running:
             self.camera_manager.start_capture()
@@ -322,3 +278,29 @@ class CameraView(BaseCameraUI):
         self.stop_camera()
         if hasattr(self, "sound_handler"):
             self.sound_handler.cleanup()
+
+    def _ensure_reports_folder(self):
+        """Garante que a estrutura de pastas reports existe para a empresa ativa"""
+        if not self.active_company:
+            return None
+
+        try:
+            company_name = self.active_company["name"]
+            safe_name = "".join(
+                c for c in company_name if c.isalnum() or c in (" ", "-", "_")
+            ).rstrip()
+
+            # Navegar até a raiz do projeto
+            base_dir = Path(__file__).resolve()
+            while base_dir.name != "Inspecao_Bags":
+                base_dir = base_dir.parent
+
+            # Criar pasta reports se não existir
+            reports_dir = base_dir / "cadastros" / safe_name / "reports"
+            reports_dir.mkdir(parents=True, exist_ok=True)
+
+            return reports_dir
+
+        except Exception as e:
+            logger.error(f"Erro ao criar pasta de reports: {str(e)}", exc_info=True)
+            return None

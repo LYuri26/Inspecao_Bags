@@ -1,42 +1,33 @@
 import os
 from pathlib import Path
 from datetime import datetime
-from PyQt5.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QPushButton,
-    QComboBox,
-    QFileDialog,
-    QLabel,
-    QDateEdit,
-    QTextEdit,
-    QCompleter,
-)
-from PyQt5.QtPrintSupport import QPrinter
-from PyQt5.QtGui import QTextDocument
-from PyQt5.QtCore import QDate, Qt
-import json
 import cv2
 import numpy as np
 import logging
 import time
-from .utils import save_defect_image
 
 logger = logging.getLogger(__name__)
 
 
-def process_detection(self, frame: np.ndarray) -> np.ndarray:
+def process_detection(self, frame, camera_id=None):
     """
     Processa um frame para detecção de defeitos com:
-    - Registro único por localização aproximada por bag
-    - Sincronização de bag_id entre as 9 câmeras
-    - Troca automática de bag após 15s sem detectar sacola
+    - Detecção em tempo real
+    - Desenho de bounding boxes e labels
+    - Registro de defeitos
+    - Verificação de políticas da empresa
+    - Tratamento robusto de erros
     """
     try:
-        annotated_frame = frame.copy()
+        # Verifica se o frame é válido
+        if frame is None or frame.size == 0:
+            logger.warning("Frame vazio recebido para processamento")
+            return np.zeros((480, 640, 3), dtype=np.uint8)
 
-        # Verifica modelo
+        annotated_frame = frame.copy()
+        logger.debug(f"Iniciando processamento - Frame shape: {frame.shape}")
+
+        # Verifica se o modelo está carregado
         if not self.model or not hasattr(self.model, "model"):
             cv2.putText(
                 annotated_frame,
@@ -47,103 +38,106 @@ def process_detection(self, frame: np.ndarray) -> np.ndarray:
                 (0, 0, 255),
                 2,
             )
+            logger.warning("Modelo YOLO não disponível para detecção")
             return annotated_frame
 
-        # Inferência YOLO
-        result = self.model.model(frame)[0]
+        # Executa a inferência do modelo
+        try:
+            results = self.model.model(frame)
+            result = results[0]
+        except Exception as e:
+            logger.error(f"Erro na inferência do modelo: {str(e)}", exc_info=True)
+            cv2.putText(
+                annotated_frame,
+                "Erro no modelo",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 255),
+                2,
+            )
+            return annotated_frame
+
+        # Verifica se há detecções
         if not getattr(result, "boxes", None) or len(result.boxes) == 0:
-            # Verifica timeout de troca de bag
-            if time.time() - self.last_bag_seen_time > 15:
-                self.bag_counter += 1
-                self.current_bag_defects.clear()
-                self.last_bag_seen_time = time.time()
+            logger.debug("Nenhuma detecção encontrada no frame")
+            self._check_bag_timeout()
             return annotated_frame
 
+        # Obtém política da empresa
         policy = self.active_company.get("policy", {}) if self.active_company else {}
         class_counts = {}
         detected_bag = False
 
+        # Processa cada detecção
         for box, score, cls_id in zip(
             result.boxes.xyxy, result.boxes.conf, result.boxes.cls
         ):
-            score = float(score)
-            if score < 0.6:
+            try:
+                score = float(score)
+                if score < 0.6:
+                    continue
+
+                class_name = self.model.model.names[int(cls_id)]
+                name_l = class_name.lower()
+                name_d = class_name.capitalize()
+
+                # Coordenadas da bounding box
+                x1, y1, x2, y2 = map(int, box.cpu().numpy())
+
+                # Atualiza tempo se detectar sacola
+                if name_l == "sacola":
+                    detected_bag = True
+                    self.last_bag_seen_time = time.time()
+
+                # Verifica política da empresa
+                if name_l in self.defect_mapping and policy.get(
+                    self.defect_mapping[name_l], False
+                ):
+                    continue
+
+                # Desenha a bounding box
+                color = self.class_colors.get(name_d, (255, 255, 255))
+                class_counts[class_name] = class_counts.get(class_name, 0) + 1
+                label = f"{name_d} #{class_counts[class_name]} ({score:.2f})"
+
+                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 3)
+                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                cv2.rectangle(
+                    annotated_frame, (x1, y1 - th - 10), (x1 + tw + 4, y1), color, -1
+                )
+                cv2.putText(
+                    annotated_frame,
+                    label,
+                    (x1 + 2, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (0, 0, 0),
+                    2,
+                )
+
+                # Registra defeitos
+                if name_l in self.defect_mapping and not policy.get(
+                    self.defect_mapping[name_l], False
+                ):
+                    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                    pos_key = (name_l, cx // 20, cy // 20)
+
+                    if pos_key not in self.current_bag_defects:
+                        self.current_bag_defects.append(pos_key)
+                        alert_msg = f"Defeito detectado: {name_d} (Câmera {camera_id+1 if camera_id is not None else 'N/A'}, Bag {self.bag_counter})"
+                        self.sound_handler.trigger_alert(alert_msg, defect_key=name_l)
+
+                        # Salvamento robusto da imagem
+                        if hasattr(self, "_save_defect_image"):
+                            self._save_defect_image(annotated_frame, name_l, camera_id)
+
+            except Exception as e:
+                logger.error(f"Erro ao processar detecção: {str(e)}", exc_info=True)
                 continue
 
-            class_name = self.model.model.names[int(cls_id)]
-            name_l = class_name.lower()
-            name_d = class_name.capitalize()
-
-            x1, y1, x2, y2 = map(int, box.cpu().numpy())
-
-            # Se detectar sacola, atualiza tempo
-            if name_l == "sacola":
-                detected_bag = True
-                self.last_bag_seen_time = time.time()
-
-            # Defeito permitido pela política? pula
-            if name_l in self.defect_mapping and policy.get(
-                self.defect_mapping[name_l], False
-            ):
-                continue
-
-            # Desenha bounding box
-            color = self.class_colors.get(name_d, (255, 255, 255))
-            class_counts[class_name] = class_counts.get(class_name, 0) + 1
-            label = f"{name_d} #{class_counts[class_name]} ({score:.2f})"
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 3)
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-            cv2.rectangle(
-                annotated_frame, (x1, y1 - th - 10), (x1 + tw + 4, y1), color, -1
-            )
-            cv2.putText(
-                annotated_frame,
-                label,
-                (x1 + 2, y1 - 5),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (0, 0, 0),
-                2,
-            )
-
-            # Registro de defeito único por localização aproximada
-            if name_l in self.defect_mapping and not policy.get(
-                self.defect_mapping[name_l], False
-            ):
-                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                pos_key = (name_l, cx // 20, cy // 20)  # agrupa por blocos de 20px
-                if pos_key not in self.current_bag_defects:
-                    self.current_bag_defects.append(pos_key)
-                    self.sound_handler.trigger_alert(
-                        f"Defeito detectado: {name_d} (Bag {self.bag_counter})",
-                        defect_key=name_l,
-                    )
-
-                    # Salva frame anotado
-                    save_defect_image(
-                        self, annotated_frame, f"bag{self.bag_counter + 1}-{name_l}"
-                    )
-
-                    # 🔹 Salva frame original (sem desenho)
-                    orig_frame = self.camera_manager.get_latest_frame(
-                        self.camera_id, raw=True
-                    )
-                    if orig_frame is not None:
-                        from pathlib import Path
-                        import cv2, datetime
-
-                        day_folder = (
-                            Path("cadastros")
-                            / "raw_frames"
-                            / datetime.now().strftime("%d-%m-%Y")
-                        )
-                        day_folder.mkdir(parents=True, exist_ok=True)
-
-                        filename = f"bag{self.bag_counter + 1}-{name_l}-raw.jpg"
-                        cv2.imwrite(str(day_folder / filename), orig_frame)
-
-        # Se detectou nova sacola mas passou timeout, troca
-        if detected_bag and (time.time() - self.last_bag_seen_time > 5):
+        # Troca de sacola se detectada mas com timeout
+        if detected_bag and (time.time() - self.last_bag_seen_time > 15):
             self.bag_counter += 1
             self.current_bag_defects.clear()
             self.last_bag_seen_time = time.time()
@@ -151,21 +145,28 @@ def process_detection(self, frame: np.ndarray) -> np.ndarray:
         return annotated_frame
 
     except Exception as e:
-        logger.error(f"[process_detection] Erro no processamento: {e}", exc_info=True)
-        return frame
+        logger.error(f"Erro crítico: {str(e)}", exc_info=True)
+        return frame if frame is not None else np.zeros((480, 640, 3), dtype=np.uint8)
+
+
+def check_bag_timeout(self):
+    """Verifica e atualiza timeout da sacola"""
+    if time.time() - self.last_bag_seen_time > 15:
+        self.bag_counter += 1
+        self.current_bag_defects.clear()
+        self.last_bag_seen_time = time.time()
+        logger.info(f"Troca automática para bag {self.bag_counter}")
 
 
 def display_image(self, image: np.ndarray):
+    """Exibe imagem na interface"""
     from PyQt5.QtGui import QImage, QPixmap
     from PyQt5.QtCore import Qt
 
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     h, w, ch = rgb_image.shape
     q_img = QImage(rgb_image.data, w, h, ch * w, QImage.Format_RGB888)
-
     pixmap = QPixmap.fromImage(q_img)
-
-    # Define o tamanho real da imagem no QLabel
     self.camera_label.setPixmap(
         pixmap.scaled(
             self.camera_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
@@ -173,67 +174,55 @@ def display_image(self, image: np.ndarray):
     )
 
 
-def generate_defect_summary(self, company_name, date_from, date_to):
+def save_defect_image(company_name: str, camera_id: int, frame, defect_name: str):
+    """
+    Salva a imagem do defeito detectado dentro da pasta da empresa selecionada,
+    organizada por data, e nomeando com timestamp, id da câmera e nome do defeito.
+    Também gera um TXT com feedback do evento.
+    """
+
+    # Normaliza nome da empresa
     safe_name = "".join(
         c for c in company_name if c.isalnum() or c in (" ", "-", "_")
     ).rstrip()
 
+    # Caminho até a raiz do projeto
     base_dir = Path(__file__).resolve()
     while base_dir.name != "Inspecao_Bags":
         base_dir = base_dir.parent
 
-    cadastros_dir = base_dir / "cadastros"
-    reports_dir = cadastros_dir / safe_name / "reports"
-    documents_dir = cadastros_dir / safe_name / "documents"
+    # Pasta de reports da empresa
+    reports_dir = base_dir / "cadastros" / safe_name / "reports"
+    today = datetime.now().strftime("%d-%m-%Y")
+    day_folder = reports_dir / today
+    day_folder.mkdir(parents=True, exist_ok=True)
 
-    defect_summary = {}
+    # Nome do arquivo da imagem
+    timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+    filename = f"{timestamp}-cam{camera_id}-{defect_name}.jpg"
+    filepath = day_folder / filename
 
-    if not reports_dir.exists():
-        return defect_summary
+    # Salva imagem
+    try:
+        cv2.imwrite(str(filepath), frame)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 📸 Imagem salva: {filepath}")
+    except Exception as e:
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] ❌ Erro ao salvar imagem: {e}")
+        return None
 
-    for day_folder in reports_dir.iterdir():
-        if not day_folder.is_dir():
-            continue
-        try:
-            folder_date = datetime.strptime(day_folder.name, "%d-%m-%Y").date()
-        except ValueError:
-            continue
-        if date_from.toPyDate() <= folder_date <= date_to.toPyDate():
-            date_str = folder_date.strftime("%d/%m/%Y")
-            defect_summary.setdefault(date_str, {})
-            for img_file in day_folder.glob("*.jpg"):
-                parts = img_file.name.replace(".jpg", "").split("-")
-                bag_id = (
-                    parts[1]
-                    if len(parts) > 2 and parts[1].startswith("bag")
-                    else "bag?"
-                )
-                defect_type = parts[-1].lower()
-                defect_summary[date_str].setdefault(bag_id, {})
-                defect_summary[date_str][bag_id][defect_type] = (
-                    defect_summary[date_str][bag_id].get(defect_type, 0) + 1
-                )
-
-        # Salva documentos
-        if not documents_dir.exists():
-            documents_dir.mkdir()
-        day_folder_name = date_to.toString("dd-MM-yyyy")
-        day_report_dir = documents_dir / day_folder_name
-        day_report_dir.mkdir(exist_ok=True)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        txt_path = day_report_dir / f"summary_{timestamp}.txt"
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(f"Relatório de Inspeções - {company_name}\n")
+    # Cria/atualiza arquivo de feedback TXT
+    feedback_file = day_folder / "defects_log.txt"
+    try:
+        with open(feedback_file, "a", encoding="utf-8") as f:
             f.write(
-                f"Período: {date_from.toString('dd/MM/yyyy')} a {date_to.toString('dd/MM/yyyy')}\n\n"
+                f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')} | "
+                f"Empresa: {company_name} | Câmera: {camera_id} | "
+                f"Defeito: {defect_name} | Arquivo: {filename}\n"
             )
-            for date_str, bags in sorted(defect_summary.items(), reverse=True):
-                f.write(f"Data: {date_str}\n")
-                for bag, defects in bags.items():
-                    f.write(f"  {bag}:\n")
-                    for defect, count in defects.items():
-                        f.write(f"    - {defect.capitalize()}: {count}\n")
-                f.write("\n")
+        print(
+            f"[{datetime.now().strftime('%H:%M:%S')}] 📝 Log atualizado em: {feedback_file}"
+        )
+    except Exception as e:
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] ❌ Erro ao salvar log TXT: {e}")
 
-        return defect_summary
+    return filepath

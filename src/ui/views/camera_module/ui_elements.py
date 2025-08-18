@@ -179,8 +179,8 @@ class BaseCameraUI(QWidget):
         return label
 
     def update_grid_display(self, frames, cols=3, rows=3):
-        """Updates the display with a grid of camera frames with improved scaling for large screens"""
         if not frames or len(frames) != cols * rows:
+            logger.warning(f"Invalid frames list: {len(frames) if frames else 'None'}")
             return
 
         container = self.camera_display
