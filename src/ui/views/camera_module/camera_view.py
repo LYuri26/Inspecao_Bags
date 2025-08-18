@@ -7,7 +7,8 @@ import os
 import time
 from pathlib import Path
 from datetime import datetime
-from .detection_logic import process_detection, display_image
+from .detection_logic import process_detection
+from .utils import display_image
 from .sound_handler import SoundHandler
 from .camera_manager import CameraManager
 from .ui_elements import BaseCameraUI
@@ -129,49 +130,6 @@ class CameraView(BaseCameraUI):
             if not (defect_key and policy.get(defect_key, False)):
                 self.save_defect_image(frame, defect_name.lower(), camera_id)
 
-    def _save_defect_image(self, frame, defect_type, camera_id):
-        """Salva imagem anotada com defeito no formato compatível com reports.py"""
-        if not self.active_company:
-            return None
-
-        try:
-            # Garante que a pasta existe
-            reports_dir = self._ensure_reports_folder()
-            if not reports_dir:
-                return None
-
-            # Pasta do dia atual
-            day_folder = reports_dir / datetime.now().strftime("%d-%m-%Y")
-            day_folder.mkdir(exist_ok=True)
-
-            # Nome do arquivo no formato: timestamp-bagX-defeito-cameraY.jpg
-            timestamp = datetime.now().strftime("%H-%M-%S")
-            filename = f"{timestamp}-bag{self.bag_counter}-{defect_type}-camera{camera_id+1}.jpg"
-            filepath = day_folder / filename
-
-            # Salva a imagem
-            cv2.imwrite(str(filepath), frame)
-            logger.info(f"Imagem de defeito salva em: {filepath}")
-
-            # Cria/atualiza arquivo de log
-            log_file = day_folder / "defects_log.txt"
-            with open(log_file, "a", encoding="utf-8") as f:
-                log_entry = (
-                    f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')} | "
-                    f"Empresa: {self.active_company['name']} | "
-                    f"Câmera: {camera_id+1} | "
-                    f"Defeito: {defect_type} | "
-                    f"Sacola: {self.bag_counter} | "
-                    f"Arquivo: {filename}\n"
-                )
-                f.write(log_entry)
-
-            return str(filepath)
-
-        except Exception as e:
-            logger.error(f"Erro ao salvar imagem do defeito: {str(e)}", exc_info=True)
-            return None
-
     def _check_bag_timeout(self):
         """Check if bag needs to be changed due to timeout"""
         if time.time() - self.last_bag_seen_time > 15:
@@ -207,9 +165,6 @@ class CameraView(BaseCameraUI):
         if camera_id is None:
             self.start_all_cameras()
             return
-
-        # Garante que a pasta reports existe antes de iniciar
-        self._ensure_reports_folder()
 
         if not self.camera_manager.running:
             self.camera_manager.start_capture()
@@ -280,29 +235,3 @@ class CameraView(BaseCameraUI):
         self.stop_camera()
         if hasattr(self, "sound_handler"):
             self.sound_handler.cleanup()
-
-    def _ensure_reports_folder(self):
-        """Garante que a estrutura de pastas reports existe para a empresa ativa"""
-        if not self.active_company:
-            return None
-
-        try:
-            company_name = self.active_company["name"]
-            safe_name = "".join(
-                c for c in company_name if c.isalnum() or c in (" ", "-", "_")
-            ).rstrip()
-
-            # Navegar até a raiz do projeto
-            base_dir = Path(__file__).resolve()
-            while base_dir.name != "Inspecao_Bags":
-                base_dir = base_dir.parent
-
-            # Criar pasta reports se não existir
-            reports_dir = base_dir / "cadastros" / safe_name / "reports"
-            reports_dir.mkdir(parents=True, exist_ok=True)
-
-            return reports_dir
-
-        except Exception as e:
-            logger.error(f"Erro ao criar pasta de reports: {str(e)}", exc_info=True)
-            return None

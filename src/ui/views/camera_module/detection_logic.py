@@ -1,10 +1,8 @@
-import os
-from pathlib import Path
-from datetime import datetime
 import cv2
 import numpy as np
 import logging
 import time
+from .utils import save_defect_image  # reutiliza função utilitária
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +14,6 @@ def process_detection(self, frame, camera_id=None):
     - Desenho de bounding boxes e labels
     - Registro de defeitos
     - Verificação de políticas da empresa
-    - Tratamento robusto de erros
     """
     try:
         # Verifica se o frame é válido
@@ -61,7 +58,7 @@ def process_detection(self, frame, camera_id=None):
         # Verifica se há detecções
         if not getattr(result, "boxes", None) or len(result.boxes) == 0:
             logger.debug("Nenhuma detecção encontrada no frame")
-            self._check_bag_timeout()
+            check_bag_timeout(self)
             return annotated_frame
 
         # Obtém política da empresa
@@ -125,12 +122,15 @@ def process_detection(self, frame, camera_id=None):
 
                     if pos_key not in self.current_bag_defects:
                         self.current_bag_defects.append(pos_key)
-                        alert_msg = f"Defeito detectado: {name_d} (Câmera {camera_id+1 if camera_id is not None else 'N/A'}, Bag {self.bag_counter})"
+                        alert_msg = (
+                            f"Defeito detectado: {name_d} "
+                            f"(Câmera {camera_id+1 if camera_id is not None else 'N/A'}, "
+                            f"Bag {self.bag_counter})"
+                        )
                         self.sound_handler.trigger_alert(alert_msg, defect_key=name_l)
 
-                        # Salvamento robusto da imagem
-                        if hasattr(self, "save_defect_image"):
-                            self.save_defect_image(annotated_frame, name_l, camera_id)
+                        # Salvamento robusto da imagem via utils
+                        save_defect_image(self, annotated_frame, name_l, camera_id)
 
             except Exception as e:
                 logger.error(f"Erro ao processar detecção: {str(e)}", exc_info=True)
@@ -156,19 +156,3 @@ def check_bag_timeout(self):
         self.current_bag_defects.clear()
         self.last_bag_seen_time = time.time()
         logger.info(f"Troca automática para bag {self.bag_counter}")
-
-
-def display_image(self, image: np.ndarray):
-    """Exibe imagem na interface"""
-    from PyQt5.QtGui import QImage, QPixmap
-    from PyQt5.QtCore import Qt
-
-    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    h, w, ch = rgb_image.shape
-    q_img = QImage(rgb_image.data, w, h, ch * w, QImage.Format_RGB888)
-    pixmap = QPixmap.fromImage(q_img)
-    self.camera_label.setPixmap(
-        pixmap.scaled(
-            self.camera_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
-        )
-    )
