@@ -13,7 +13,6 @@ from .sound_handler import SoundHandler
 from .camera_manager import CameraManager
 from .ui_elements import BaseCameraUI
 from .utils import update_status
-from .utils import update_status, save_defect_image
 
 
 logger = logging.getLogger(__name__)
@@ -44,7 +43,7 @@ class CameraView(BaseCameraUI):
         # Camera manager for RTSP streams
         self.camera_manager = CameraManager(num_cameras=9)
         self.camera_manager.frame_ready.connect(self.handle_new_frame)
-
+        self.current_images = {}  # guarda último frame processado de cada câmera
         # Alert configuration
         self.sound_handler = SoundHandler(
             alert_layout=self.alert_layout,
@@ -68,21 +67,16 @@ class CameraView(BaseCameraUI):
         self.current_image = None
 
     def handle_new_frame(self, camera_id, frame):
-        """Processa novos frames recebidos do CameraManager"""
-        if frame is None:
-            return
-
         try:
-            # Usa a função unificada de processamento
-            self.current_image = process_detection(self, frame, camera_id)
+            detected_frame = process_detection(self, frame, camera_id=camera_id)
+            self.current_images[camera_id] = detected_frame
         except Exception as e:
-            logger.error(
-                f"Error processing camera {camera_id} frame: {str(e)}", exc_info=True
+            update_status(
+                self, f"❌ Erro ao processar frame da câmera {camera_id+1}: {e}"
             )
-            self.current_image = frame
 
     def update_frame(self):
-        """Atualiza exibição das câmeras com detecção em tempo real"""
+        """Atualiza exibição das câmeras usando último frame processado de cada câmera"""
         frames = []
 
         for i in range(9):
@@ -91,8 +85,8 @@ class CameraView(BaseCameraUI):
                 frames.append(None)
                 continue
 
-            # Processa detecção em todos os frames
-            detected_frame = process_detection(self, frame, i)
+            # ✅ Pega frame processado da câmera correspondente (se existir)
+            detected_frame = self.current_images.get(i, frame)
 
             # Gera preview reduzido para exibição
             h, w = detected_frame.shape[:2]
@@ -101,65 +95,7 @@ class CameraView(BaseCameraUI):
             preview_frame = cv2.resize(detected_frame, (new_w, new_h))
             frames.append(preview_frame)
 
-        # exibe no grid (3x3)
-        self.update_grid_display(frames)
-
-    def _handle_defect_detection(self, camera_id, defect_name, bbox, frame):
-        """Handle detection of a specific defect"""
-        # Verifica política da empresa antes de processar
-        policy = self.active_company.get("policy", {}) if self.active_company else {}
-        defect_key = self.defect_mapping.get(defect_name.lower())
-
-        if defect_key and policy.get(defect_key, False):
-            logger.debug(f"Defeito {defect_name} aceito pela política - ignorando")
-            return
-
-        x1, y1, x2, y2 = bbox
-        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-
-        # Group by 20px blocks to avoid duplicate alerts
-        pos_key = (cx // 20, cy // 20)
-
-        if pos_key not in self.current_bag_defects:
-            self.current_bag_defects.append(pos_key)
-
-            # Trigger alert (single sound for all defects)
-            self.sound_handler.trigger_alert(
-                f"Defeito detectado: {defect_name} (Câmera {camera_id+1}, Sacola {self.bag_counter+1})"
-            )
-
-            # Save defect image only if not accepted by policy
-            if not (defect_key and policy.get(defect_key, False)):
-                self.save_defect_image(frame, defect_name.lower(), camera_id)
-
-    def _check_bag_timeout(self):
-        """Check if bag needs to be changed due to timeout"""
-        if time.time() - self.last_bag_seen_time > 15:
-            self.bag_counter += 1
-            self.current_bag_defects.clear()
-            self.last_bag_seen_time = time.time()
-
-    def update_frame(self):
-        """Atualiza exibição das câmeras com detecção em tempo real"""
-        frames = []
-
-        for i in range(9):
-            frame = self.camera_manager.get_latest_frame(i)
-            if frame is None:
-                frames.append(None)
-                continue
-
-            # Processa detecção em todos os frames
-            detected_frame = process_detection(self, frame, i)
-
-            # Gera preview reduzido para exibição
-            h, w = detected_frame.shape[:2]
-            scale = 640 / max(w, h)
-            new_w, new_h = int(w * scale), int(h * scale)
-            preview_frame = cv2.resize(detected_frame, (new_w, new_h))
-            frames.append(preview_frame)
-
-        # exibe no grid (3x3)
+        # Exibe no grid (3x3)
         self.update_grid_display(frames)
 
     def start_camera(self, camera_id=0):

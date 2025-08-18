@@ -1,14 +1,64 @@
 # src/ui/views/camera_module/camera_manager.py
-from PyQt5.QtCore import QObject, pyqtSignal, QThread
+from PyQt5.QtCore import QObject, pyqtSignal, QThread, QTimer
 import subprocess
 import numpy as np
 import logging
 import time
 import threading
 from typing import Optional, List, Dict
-
+import cv2
 
 logger = logging.getLogger(__name__)
+
+
+class WebcamWorker(QThread):
+    """
+    Worker que lê frames da webcam usando OpenCV.
+    """
+
+    frame_captured = pyqtSignal(int, object)
+
+    def __init__(
+        self,
+        camera_id: int,
+        device_index: int = 0,
+        width: int = 320,
+        height: int = 240,
+        fps: int = 5,
+    ):
+        super().__init__()
+        self.camera_id = camera_id
+        self.device_index = device_index
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self._running = False
+        self._cap: Optional[cv2.VideoCapture] = None
+
+    def run(self):
+        self._running = True
+        self._cap = cv2.VideoCapture(self.device_index)
+        if not self._cap.isOpened():
+            logger.error(f"❌ Webcam {self.device_index} não pôde ser aberta.")
+            return
+
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self._cap.set(cv2.CAP_PROP_FPS, self.fps)
+
+        while self._running:
+            ret, frame = self._cap.read()
+            if not ret:
+                time.sleep(0.05)
+                continue
+            self.frame_captured.emit(self.camera_id, frame)
+            time.sleep(1.0 / self.fps)
+
+        self._cap.release()
+
+    def stop(self):
+        self._running = False
+        self.wait()
 
 
 class FFmpegWorker(QThread):
@@ -188,15 +238,16 @@ class CameraManager(QObject):
 
         # Configuração das URLs RTSP para todas as 9 câmeras
         self.camera_urls: List[Optional[str]] = [
-            "rtsp://admin:Solutions10@@192.168.0.241:554/Streaming/Channels/101",  # Cam 0
-            "rtsp://admin:Solutions10@@192.168.0.242:554/Streaming/Channels/101",  # Cam 1
+            "webcam",  # Cam 0 será usada como webcam
+            # None,  # "rtsp://admin:Solutions10@@192.168.0.241:554/Streaming/Channels/101",  # Cam 0
+            None,  # "rtsp://admin:Solutions10@@192.168.0.242:554/Streaming/Channels/101",  # Cam 1
             None,  # "rtsp://admin:Solutions10@@192.168.0.243:554/Streaming/Channels/101",  # Cam 2
             None,  # "rtsp://admin:Solutions10@@192.168.0.244:554/Streaming/Channels/101",  # Cam 3
-            "rtsp://admin:Solutions10@@192.168.0.245:554/Streaming/Channels/101",  # Cam 4
-            "rtsp://admin:Solutions10@@192.168.0.246:554/Streaming/Channels/101",  # Cam 5
+            None,  # "rtsp://admin:Solutions10@@192.168.0.245:554/Streaming/Channels/101",  # Cam 4
+            None,  # "rtsp://admin:Solutions10@@192.168.0.246:554/Streaming/Channels/101",  # Cam 5
             None,  # "rtsp://admin:Solutions10@@192.168.0.247:554/Streaming/Channels/101",  # Cam 6
             None,  # "rtsp://admin:Solutions10@@192.168.0.248:554/Streaming/Channels/101",  # Cam 7
-            "rtsp://admin:Evento0128@192.168.1.101:559/Streaming/Channels/101",  # Cam 0  # Cam 8 (reservada para futura expansão)
+            None,  # "rtsp://admin:Evento0128@192.168.1.101:559/Streaming/Channels/101",  # Cam 0  # Cam 8 (reservada para futura expansão)
         ]
         # Parâmetros leves por padrão (pode ajustar depois)
         self.WIDTH = 320
@@ -220,12 +271,20 @@ class CameraManager(QObject):
         if self.running:
             return
         self.running = True
-
         self._workers.clear()
+
         for cam_id, url in enumerate(self.camera_urls):
             if not url:
                 continue
 
+            if url == "webcam":
+                webcam_worker = WebcamWorker(camera_id=cam_id, device_index=0)
+                webcam_worker.frame_captured.connect(self._on_frame)
+                webcam_worker.start()
+                self._workers.append(webcam_worker)
+                continue
+
+            # Caso contrário, é RTSP → usa FFmpegWorker
             worker = FFmpegWorker(
                 camera_id=cam_id,
                 rtsp_url=url,
@@ -234,11 +293,29 @@ class CameraManager(QObject):
                 fps=self.FPS,
             )
             worker.frame_captured.connect(self._on_frame)
+
+            # --- Timer de 5s baseado em frames recebidos ---
+            def fallback():
+                if cam_id not in self._latest_frames:  # nenhum frame chegou ainda
+                    logger.warning(
+                        f"⚠️ Cam {cam_id}: sem frames em 5s, tentando webcam…"
+                    )
+                    worker.stop()
+                    webcam_worker = WebcamWorker(camera_id=cam_id, device_index=0)
+                    webcam_worker.frame_captured.connect(self._on_frame)
+                    webcam_worker.start()
+                    self._workers.append(webcam_worker)
+
+            timer = QTimer()
+            timer.setSingleShot(True)
+            timer.timeout.connect(fallback)
+            timer.start(5000)
+
             worker.start()
             self._workers.append(worker)
 
         if not self._workers:
-            logger.warning("⚠️ Nenhuma URL de câmera configurada. Nada a iniciar.")
+            logger.warning("⚠️ Nenhuma câmera ativa. Prosseguindo sem captura.")
 
     def stop_capture(self):
         if not self.running:

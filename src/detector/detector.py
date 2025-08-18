@@ -103,43 +103,35 @@ class BagDetector:
             raise ValueError(f"Falha ao ler imagem: {img_path}")
         return img
 
-    def process_frame(self, frame: np.ndarray) -> np.ndarray:
+    def draw_detections(
+        self, frame: np.ndarray, detections: List[Dict[str, Any]]
+    ) -> np.ndarray:
         """
-        Processa frame da câmera e desenha detecções multiclasse
+        Desenha detecções no frame, usando resultados já calculados por detect().
         """
         try:
-            results = self.model(frame)
-            result = results[0]
+            annotated = frame.copy()
+            for det in detections:
+                bbox = det["bbox"]
+                score = det["confidence"]
+                class_name = det["class_name"]
 
-            if result.boxes is None or len(result.boxes) == 0:
-                return frame
+                x1, y1, x2, y2 = map(int, bbox)
+                color = self.CLASS_COLORS.get(class_name, (255, 255, 255))
+                label = f"{class_name} {score:.2f}"
 
-            for box, score, cls_id in zip(
-                result.boxes.xyxy, result.boxes.conf, result.boxes.cls
-            ):
-                score = float(score)
-                if score >= self.confidence_threshold:
-                    class_id = int(cls_id)
-                    class_name = self.model.names[class_id]
-                    color = self.CLASS_COLORS.get(
-                        class_name, (255, 255, 255)
-                    )  # Branco se desconhecido
-                    x1, y1, x2, y2 = map(int, box.cpu().numpy())
-                    label = f"{class_name} {score:.2f}"
-
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                    cv2.putText(
-                        frame,
-                        label,
-                        (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        color,
-                        2,
-                    )
-
-            return frame
+                cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(
+                    annotated,
+                    label,
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    color,
+                    2,
+                )
+            return annotated
 
         except Exception as e:
-            logger.error(f"❌ Erro ao processar frame: {e}")
+            logger.error(f"❌ Erro ao desenhar detecções: {e}")
             return frame

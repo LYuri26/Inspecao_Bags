@@ -19,41 +19,37 @@ def simple_classify(
     raw_results: List[Dict[str, Any]], min_confidence: float = 0.5
 ) -> List[DetectionResult]:
     """
-    Classificação binária simplificada:
-    - Identifica se é sacola
-    - Identifica se tem defeito (qualquer um)
+    Interpreta resultados brutos do BagDetector.detect().
+    - Identifica sacola
+    - Identifica defeito
 
     Args:
-        raw_results: Resultados brutos do YOLO
+        raw_results: Saída de BagDetector.detect()
         min_confidence: Confiança mínima para considerar detecção
-
-    Returns:
-        Lista de DetectionResult simplificados
     """
-    results = []
+    results: List[DetectionResult] = []
 
-    for detection in raw_results:
+    for det in raw_results:
         try:
-            class_name = detection.get("class_name", "").lower()
-            confidence = float(detection.get("confidence", 0))
+            class_name = det["class_name"].lower()
+            confidence = float(det["confidence"])
+            bbox = det["bbox"]
 
             if confidence < min_confidence:
                 continue
 
-            # Classificação binária
             is_bag = class_name == "sacola"
-            has_defect = not is_bag  # Qualquer outra classe é considerada defeito
+            has_defect = not is_bag
 
             results.append(
                 DetectionResult(
                     is_bag=is_bag,
                     has_defect=has_defect,
                     confidence=confidence,
-                    bbox=detection.get("bbox", []),
+                    bbox=bbox,
                     defect_type=class_name if has_defect else None,
                 )
             )
-
         except Exception as e:
             logger.error(f"Erro ao classificar: {e}")
 
@@ -62,21 +58,11 @@ def simple_classify(
 
 def validate_detections(
     detections: List[DetectionResult],
-    bag_min_confidence: float = 0.4,
-    defect_min_confidence: float = 0.4,
-) -> Dict[str, any]:
+    bag_min_confidence: float = 0.5,
+    defect_min_confidence: float = 0.5,
+) -> Dict[str, Any]:
     """
-    Validação simplificada:
-    - Sacola válida se confiança >= bag_min_confidence
-    - Defeito válido se confiança >= defect_min_confidence
-
-    Returns:
-        {
-            "valid_bag": bool,
-            "has_defects": bool,
-            "defects": List[str],  # Tipos de defeitos encontrados
-            "main_confidence": float  # Confiança da detecção principal
-        }
+    Validações em cima dos DetectionResults.
     """
     valid_bags = [
         d for d in detections if d.is_bag and d.confidence >= bag_min_confidence
@@ -86,8 +72,8 @@ def validate_detections(
     ]
 
     return {
-        "valid_bag": len(valid_bags) > 0,
-        "has_defects": len(valid_defects) > 0,
+        "valid_bag": bool(valid_bags),
+        "has_defects": bool(valid_defects),
         "defects": list(set(d.defect_type for d in valid_defects)),
-        "main_confidence": max([d.confidence for d in detections], default=0),
+        "main_confidence": max((d.confidence for d in detections), default=0),
     }
