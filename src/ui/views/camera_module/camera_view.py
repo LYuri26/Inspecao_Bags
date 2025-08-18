@@ -12,6 +12,8 @@ from .sound_handler import SoundHandler
 from .camera_manager import CameraManager
 from .ui_elements import BaseCameraUI
 from .utils import update_status
+from .utils import update_status, save_defect_image
+
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +127,7 @@ class CameraView(BaseCameraUI):
 
             # Save defect image only if not accepted by policy
             if not (defect_key and policy.get(defect_key, False)):
-                self._save_defect_image(frame, defect_name.lower(), camera_id)
+                self.save_defect_image(frame, defect_name.lower(), camera_id)
 
     def _save_defect_image(self, frame, defect_type, camera_id):
         """Salva imagem anotada com defeito no formato compatível com reports.py"""

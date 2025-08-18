@@ -129,8 +129,8 @@ def process_detection(self, frame, camera_id=None):
                         self.sound_handler.trigger_alert(alert_msg, defect_key=name_l)
 
                         # Salvamento robusto da imagem
-                        if hasattr(self, "_save_defect_image"):
-                            self._save_defect_image(annotated_frame, name_l, camera_id)
+                        if hasattr(self, "save_defect_image"):
+                            self.save_defect_image(annotated_frame, name_l, camera_id)
 
             except Exception as e:
                 logger.error(f"Erro ao processar detecção: {str(e)}", exc_info=True)
@@ -172,57 +172,3 @@ def display_image(self, image: np.ndarray):
             self.camera_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
     )
-
-
-def save_defect_image(company_name: str, camera_id: int, frame, defect_name: str):
-    """
-    Salva a imagem do defeito detectado dentro da pasta da empresa selecionada,
-    organizada por data, e nomeando com timestamp, id da câmera e nome do defeito.
-    Também gera um TXT com feedback do evento.
-    """
-
-    # Normaliza nome da empresa
-    safe_name = "".join(
-        c for c in company_name if c.isalnum() or c in (" ", "-", "_")
-    ).rstrip()
-
-    # Caminho até a raiz do projeto
-    base_dir = Path(__file__).resolve()
-    while base_dir.name != "Inspecao_Bags":
-        base_dir = base_dir.parent
-
-    # Pasta de reports da empresa
-    reports_dir = base_dir / "cadastros" / safe_name / "reports"
-    today = datetime.now().strftime("%d-%m-%Y")
-    day_folder = reports_dir / today
-    day_folder.mkdir(parents=True, exist_ok=True)
-
-    # Nome do arquivo da imagem
-    timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-    filename = f"{timestamp}-cam{camera_id}-{defect_name}.jpg"
-    filepath = day_folder / filename
-
-    # Salva imagem
-    try:
-        cv2.imwrite(str(filepath), frame)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 📸 Imagem salva: {filepath}")
-    except Exception as e:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] ❌ Erro ao salvar imagem: {e}")
-        return None
-
-    # Cria/atualiza arquivo de feedback TXT
-    feedback_file = day_folder / "defects_log.txt"
-    try:
-        with open(feedback_file, "a", encoding="utf-8") as f:
-            f.write(
-                f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')} | "
-                f"Empresa: {company_name} | Câmera: {camera_id} | "
-                f"Defeito: {defect_name} | Arquivo: {filename}\n"
-            )
-        print(
-            f"[{datetime.now().strftime('%H:%M:%S')}] 📝 Log atualizado em: {feedback_file}"
-        )
-    except Exception as e:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] ❌ Erro ao salvar log TXT: {e}")
-
-    return filepath
