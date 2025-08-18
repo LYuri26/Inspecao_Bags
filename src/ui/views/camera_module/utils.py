@@ -3,6 +3,10 @@ from pathlib import Path
 from datetime import datetime
 import cv2
 import numpy as np
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +41,8 @@ def set_active_company(self, company):
 
 
 def save_defect_image(self, frame: np.ndarray, defect_type: str, camera_id: int = None):
-    """
-    Salva a imagem do defeito detectado dentro da pasta da empresa selecionada,
-    organizada por data, e nomeando com timestamp, id da câmera, id da sacola e nome do defeito.
-    Também gera um TXT com feedback do evento.
-    """
     if not self.active_company:
+        logger.error("Nenhuma empresa ativa selecionada. Abortando save_defect_image.")
         return None
 
     try:
@@ -51,30 +51,42 @@ def save_defect_image(self, frame: np.ndarray, defect_type: str, camera_id: int 
             c for c in company_name if c.isalnum() or c in (" ", "-", "_")
         ).rstrip()
 
-        # Localiza a raiz Inspecao_Bags
-        base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Bags":
-            base_dir = base_dir.parent
+        logger.debug(
+            f"Tentando salvar defeito para empresa: {company_name} ({safe_name})"
+        )
 
-        # Pasta da empresa -> cadastros/{empresa}/reports
-        reports_dir = base_dir / "cadastros" / safe_name / "reports"
+        # Verifica base_path
+        if not hasattr(self, "base_path"):
+            logger.error("Objeto não possui atributo base_path")
+            return None
+
+        logger.debug(f"Base path definido em: {self.base_path}")
+
+        reports_dir = Path(self.base_path) / safe_name / "reports"
 
         # Pasta específica do dia
         day_folder = reports_dir / datetime.now().strftime("%d-%m-%Y")
+        logger.debug(f"Criando pasta de destino: {day_folder}")
         day_folder.mkdir(parents=True, exist_ok=True)
 
-        # Nome do arquivo: timestamp-bagX-defeito-camY.jpg
+        # Nome do arquivo
         timestamp = datetime.now().strftime("%H-%M-%S")
         bag_suffix = f"-bag{self.bag_counter}" if hasattr(self, "bag_counter") else ""
         cam_suffix = f"-cam{camera_id+1}" if camera_id is not None else ""
         filename = f"{timestamp}{bag_suffix}-{defect_type}{cam_suffix}.jpg"
         filepath = day_folder / filename
 
-        # Salva imagem
-        cv2.imwrite(str(filepath), frame)
+        logger.debug(f"Caminho final da imagem: {filepath}")
+
+        # Tenta salvar imagem
+        success = cv2.imwrite(str(filepath), frame)
+        if not success:
+            logger.error(f"Falha ao salvar imagem com cv2.imwrite: {filepath}")
+            return None
+
         logger.info(f"Imagem de defeito salva em: {filepath}")
 
-        # Cria/atualiza arquivo de log
+        # Cria/atualiza log
         log_file = day_folder / "defects_log.txt"
         with open(log_file, "a", encoding="utf-8") as f:
             log_entry = (
@@ -90,7 +102,7 @@ def save_defect_image(self, frame: np.ndarray, defect_type: str, camera_id: int 
         return str(filepath)
 
     except Exception as e:
-        logger.error(f"Erro ao salvar imagem do defeito: {str(e)}", exc_info=True)
+        logger.error(f"Erro inesperado ao salvar defeito: {str(e)}", exc_info=True)
         return None
 
 

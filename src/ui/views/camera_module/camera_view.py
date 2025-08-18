@@ -58,7 +58,9 @@ class CameraView(BaseCameraUI):
         self.timer.timeout.connect(self.update_frame)
 
         # Paths and counters
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+        BASE_DIR = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "./../../../..")
+        )
         self.base_path = os.path.join(BASE_DIR, "cadastros")
         self.bag_counter = 0
         self.last_bag_seen_time = time.time()

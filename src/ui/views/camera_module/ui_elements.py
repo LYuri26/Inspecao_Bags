@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QFrame,
     QHBoxLayout,
+    QPushButton,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QFont, QPalette, QColor, QImage, QPixmap
@@ -20,6 +21,7 @@ import logging
 from PyQt5 import QtGui
 import os
 import time
+
 
 logger = logging.getLogger(__name__)
 
@@ -102,9 +104,9 @@ class BaseCameraUI(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(8)
 
-        # Company selection
+        # Company selection + botão
         self.setup_company_combo()
-        header_layout.addWidget(self.company_combo)
+        header_layout.addWidget(self.company_combo_container)
 
         # Status label
         self.status_label = QLabel("Status: Aguardando inicialização")
@@ -145,7 +147,9 @@ class BaseCameraUI(QWidget):
         layout.addWidget(footer_widget, stretch=0)
 
     def setup_company_combo(self):
-        """Setup company combobox with search functionality"""
+        """Setup company combobox com botão de confirmação"""
+        combo_layout = QHBoxLayout()
+
         self.company_combo = QComboBox()
         self.company_combo.setEditable(True)
         self.company_combo.setInsertPolicy(QComboBox.NoInsert)
@@ -155,6 +159,48 @@ class BaseCameraUI(QWidget):
         self.company_combo.completer().setFilterMode(Qt.MatchContains)
         self.company_combo.completer().setCaseSensitivity(Qt.CaseInsensitive)
         self.company_combo.setObjectName("companyCombo")
+
+        combo_layout.addWidget(self.company_combo)
+
+        # Botão confirmar
+        self.confirm_button = QPushButton("Confirmar")
+        self.confirm_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #0078d7;
+                color: white;
+                border-radius: 4px;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background-color: #005a9e;
+            }
+            """
+        )
+        self.confirm_button.clicked.connect(self.confirm_company_selection)
+        combo_layout.addWidget(self.confirm_button)
+
+        container = QWidget()
+        container.setLayout(combo_layout)
+        self.company_combo_container = container
+
+    def confirm_company_selection(self):
+        """Confirma manualmente a seleção da empresa"""
+        index = self.company_combo.currentIndex()
+        company_data = self.company_combo.itemData(index)
+
+        if company_data:
+            self.active_company = company_data
+            self.update_status(f"Empresa confirmada: {company_data['name']}")
+            logger.info(f"✅ Empresa confirmada: {company_data['name']}")
+
+            if main_window := get_main_window(self):
+                if hasattr(main_window, "on_company_changed"):
+                    main_window.on_company_changed(index)
+        else:
+            self.active_company = None
+            self.update_status("Nenhuma empresa selecionada")
+            logger.warning("⚠️ Nenhuma empresa confirmada.")
 
     def setup_alert_panel(self):
         """Setup alert panel with scrollable content"""
@@ -305,7 +351,7 @@ class BaseCameraUI(QWidget):
         return img
 
     def set_companies(self, companies):
-        """Configures the company list in the combobox"""
+        """Configura a lista de empresas no combobox"""
         self.company_combo.clear()
         self.company_combo.addItem("Selecione uma empresa", None)
 
@@ -317,6 +363,7 @@ class BaseCameraUI(QWidget):
         except TypeError:
             pass
 
+        # Conecta ao handler local
         self.company_combo.currentIndexChanged.connect(self.on_company_changed)
 
         # Reconnect main window handler if exists
@@ -327,18 +374,21 @@ class BaseCameraUI(QWidget):
                 )
 
     def on_company_changed(self, index):
-        """Called when the selected company changes"""
-        if hasattr(self, "company_combo") and self.company_combo is not None:
-            company = self.company_combo.itemData(index) if index > 0 else None
-            self.active_company = company
-            logger.info(f"Empresa ativa alterada para: {company}")
-            self.update_status(
-                f"Empresa selecionada: {company['name']}"
-                if company
-                else "Nenhuma empresa selecionada"
-            )
+        """Atualiza a empresa ativa ao selecionar no combo"""
+        company = self.company_combo.itemData(index) if index > 0 else None
+        from .utils import set_active_company
+
+        set_active_company(self, company)
+        logger.info(
+            f"✅ Empresa ativa definida: {company['name'] if company else None}"
+        )
+
+        if company:
+            logger.info(f"✅ Empresa ativa definida: {company['name']}")
+            self.update_status(f"Empresa selecionada: {company['name']}")
         else:
-            logger.warning("company_combo não foi inicializado corretamente.")
+            logger.warning("⚠️ Nenhuma empresa ativa selecionada.")
+            self.update_status("Nenhuma empresa selecionada")
 
     def update_status(self, message):
         """Updates the status label with a message"""
