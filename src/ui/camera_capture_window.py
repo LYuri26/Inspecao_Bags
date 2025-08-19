@@ -44,18 +44,30 @@ class CaptureThread(QThread):
                     self.num_photos,
                     f"Capturando foto {photo_num}/{self.num_photos}",
                 )
-                time.sleep(self.interval)  # Intervalo entre fotos
+                time.sleep(self.interval)
 
                 timestamp = int(time.time())
                 for cam_id in range(self.num_cameras):
-                    frame = self.camera_manager.get_latest_frame(cam_id)
+                    # --- Novo: abre a câmera em fullres ---
+                    cap = cv2.VideoCapture(cam_id)
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)  # força 4K
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+                    ret, highres_frame = cap.read()
+                    cap.release()
+
+                    frame = (
+                        highres_frame
+                        if ret
+                        else self.camera_manager.get_latest_frame(cam_id)
+                    )
+
                     if frame is not None:
                         filename = f"cam{cam_id}_{timestamp}_{photo_num}.jpg"
                         filepath = self.output_dir / filename
                         try:
                             cv2.imwrite(str(filepath), frame)
                             saved_files.append(str(filepath))
-                        except Exception as e:
+                        except Exception:
                             continue
 
             self.finished_capture.emit(saved_files)
