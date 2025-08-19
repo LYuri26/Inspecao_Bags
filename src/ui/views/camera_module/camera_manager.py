@@ -238,8 +238,8 @@ class CameraManager(QObject):
 
         # Configuração das URLs RTSP para todas as 9 câmeras
         self.camera_urls: List[Optional[str]] = [
-            "webcam",  # Cam 0 será usada como webcam
-            # None,  # "rtsp://admin:Solutions10@@192.168.0.241:554/Streaming/Channels/101",  # Cam 0
+            # "webcam",  # Cam 0 será usada como webcam
+            "rtsp://admin:Solutions10@@192.168.0.241:554/Streaming/Channels/101",  # Cam 0
             None,  # "rtsp://admin:Solutions10@@192.168.0.242:554/Streaming/Channels/101",  # Cam 1
             None,  # "rtsp://admin:Solutions10@@192.168.0.243:554/Streaming/Channels/101",  # Cam 2
             None,  # "rtsp://admin:Solutions10@@192.168.0.244:554/Streaming/Channels/101",  # Cam 3
