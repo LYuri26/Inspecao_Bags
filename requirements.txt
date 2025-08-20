@@ -26,6 +26,7 @@ python-dotenv==1.0.0
 PyYAML==6.0
 tqdm==4.66.1
 onnx==1.15.0
+xhtml2pdf
 
 # Verificadores de GPU
 nvidia-ml-py3==7.352.0

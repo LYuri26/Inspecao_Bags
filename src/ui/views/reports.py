@@ -166,39 +166,54 @@ class ReportsView(QWidget):
             self.selected_company = None
 
     def generate_report(self):
+        """
+        Gera relatório completo (HTML, PDF e JSON) para a empresa selecionada.
+        Só contabiliza defeitos a partir da empresa ativa.
+        """
         if not self.selected_company:
+            print("⚠️ Nenhuma empresa ativa selecionada. Relatório não gerado.")
             return
 
-        company = self.selected_company
+        company = self.selected_company.strip()
         date_from = self.date_from.date()
         date_to = self.date_to.date()
 
         # 🔹 Carregar imagens detectadas no período
         images = self.get_defect_images(company, date_from, date_to)
+        if not images:
+            print(f"ℹ️ Nenhum defeito encontrado para {company} no período.")
+            return
 
-        # 🔹 Montar resumo de defeitos (contagem por data → bag → defeito)
+        # 🔹 Resumo de defeitos (data → bag → tipo)
         defect_summary_data = {}
         for img in images:
-            date_str = img["date"]  # formato dd/MM/yyyy
+            date_str = img["date"]
             bag_id = img["bag"]
             defect = img["defect"]
-
             defect_summary_data.setdefault(date_str, {}).setdefault(
                 bag_id, {}
             ).setdefault(defect, 0)
-
             defect_summary_data[date_str][bag_id][defect] += 1
 
-        # 🔹 Consolidar/atualizar relatório diário no JSON
+        # 🔹 Consolida / atualiza relatório diário no JSON
         defect_summary = ReportsView.generate_defect_summary(
             company, defect_summary_data, date_from, date_to
         )
-        # Cálculos KPIs
-        total_bags = 0
-        total_defects = 0
-        defects_by_type = {}
-        defects_by_date = {}
 
+        # JSON de saída
+        day_folder_name = date_to.toString("yyyy-MM-dd")
+        json_file = (
+            builtins.BASE_DIR
+            / "cadastros"
+            / company
+            / "documents"
+            / day_folder_name
+            / f"summary_{day_folder_name}.json"
+        )
+        print(f"✅ Relatório JSON consolidado: {json_file}")
+
+        # 🔹 KPIs
+        total_bags, total_defects, defects_by_type, defects_by_date = 0, 0, {}, {}
         for date_str, bags in defect_summary["defects"].items():
             defects_count_date = 0
             for bag_id, defects in bags.items():
@@ -221,7 +236,7 @@ class ReportsView(QWidget):
             ", ".join([d[0] for d in dates_sorted[:3]]) if dates_sorted else "Nenhuma"
         )
 
-        # HTML do relatório
+        # 🔹 HTML bonito e estruturado
         defects_by_type_html = "".join(
             f"<li>{defect.capitalize()}: {count}</li>"
             for defect, count in defects_by_type.items()
@@ -232,69 +247,108 @@ class ReportsView(QWidget):
 
         self.html_report = f"""
         <html>
-        <head><meta charset="UTF-8"><title>Relatório Completo de Inspeções</title></head>
-        <body style="font-family: Arial; margin: 20px;">
-            <h1 style="color: #2E8B57; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
-                Relatório Completo de Inspeções
-            </h1>
-            <div style="margin-bottom: 20px;">
+        <head>
+            <meta charset="UTF-8">
+            <title>Relatório de Inspeções</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 30px; color: #333; }}
+                h1 {{ color: #2E8B57; border-bottom: 2px solid #2E8B57; padding-bottom: 5px; }}
+                h2 {{ color: #2E8B57; margin-top: 25px; }}
+                .card {{ border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }}
+                .kpi {{ font-size: 18px; margin: 5px 0; }}
+                .images {{ display: flex; flex-wrap: wrap; gap: 15px; }}
+                .img-box {{ width: 200px; border: 1px solid #ddd; padding: 5px; border-radius: 5px; }}
+                .img-box img {{ width: 100%; height: auto; }}
+                .img-caption {{ text-align: center; font-size: 10pt; margin-top: 5px; }}
+            </style>
+        </head>
+        <body>
+            <h1>Relatório de Inspeções</h1>
+            <div class="card">
                 <p><b>Empresa:</b> {company}</p>
                 <p><b>Período:</b> {date_from.toString("dd/MM/yyyy")} a {date_to.toString("dd/MM/yyyy")}</p>
                 <p><b>Data de emissão:</b> {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>
             </div>
 
             <h2>Resumo Executivo</h2>
-            <p>
-                Durante o período de <b>{date_from.toString("dd/MM/yyyy")} a {date_to.toString("dd/MM/yyyy")}</b>, a inspeção da empresa <b>{company}</b> analisou 
-                <b>{total_bags}</b> sacolas, identificando <b>{total_defects}</b> defeitos, com uma taxa média de <b>{defect_rate:.2f}%</b>. 
-                O defeito mais comum foi <b>{top_defect.capitalize()}</b>.
-            </p>
+            <div class="card">
+                <p>
+                    Entre <b>{date_from.toString("dd/MM/yyyy")}</b> e <b>{date_to.toString("dd/MM/yyyy")}</b>, 
+                    a inspeção da empresa <b>{company}</b> analisou um total de <b>{total_bags}</b> sacolas, 
+                    identificando <b>{total_defects}</b> defeitos. 
+                    A taxa média de defeitos foi de <b>{defect_rate:.2f}%</b>. 
+                    O defeito mais frequente foi <b>{top_defect.capitalize()}</b>.
+                </p>
+            </div>
 
             <h2>Indicadores-Chave</h2>
-            <ul>
-                <li>Total de Sacolas Inspecionadas: {total_bags}</li>
-                <li>Total de Defeitos Identificados: {total_defects}</li>
-                <li>Defeitos por Tipo:</li>
-                <ul>{defects_by_type_html}</ul>
-                <li>Distribuição Diária de Defeitos:</li>
-                <ul>{defects_by_date_html}</ul>
-            </ul>
+            <div class="card">
+                <div class="kpi">📦 Sacolas Inspecionadas: <b>{total_bags}</b></div>
+                <div class="kpi">⚠️ Defeitos Identificados: <b>{total_defects}</b></div>
+                <div class="kpi">📊 Taxa de Defeitos: <b>{defect_rate:.2f}%</b></div>
+                <div class="kpi">🏆 Defeito Mais Frequente: <b>{top_defect.capitalize()}</b></div>
+                <div class="kpi">📅 Datas com Mais Defeitos: {dates_with_most_defects}</div>
+            </div>
 
-            <h2>Análise Detalhada</h2>
-            <p>As datas <b>{dates_with_most_defects}</b> apresentaram picos significativos de defeitos.</p>
+            <h2>Distribuição dos Defeitos</h2>
+            <div class="card">
+                <h3>Por Tipo</h3>
+                <ul>{defects_by_type_html}</ul>
+                <h3>Por Data</h3>
+                <ul>{defects_by_date_html}</ul>
+            </div>
 
             <h2>Registros Visuais</h2>
         """
 
-        # 🔹 Acrescenta imagens
         if images:
-            self.html_report += (
-                "<div style='display: flex; flex-wrap: wrap; gap: 15px;'>"
-            )
+            self.html_report += "<div class='images'>"
             for img in images:
                 self.html_report += f"""
-                <div style='width: 200px; border: 1px solid #ddd; padding: 5px;'>
-                    <img src='file://{img['path']}' style='width: 100%; height: auto;' />
-                    <div style='text-align: center; font-size: 10pt; margin-top: 5px;'>
+                <div class='img-box'>
+                    <img src='file://{img['path']}' />
+                    <div class='img-caption'>
                         {img['date']} - {img['bag'].upper()} - {img['defect'].capitalize()}
                     </div>
                 </div>
                 """
             self.html_report += "</div>"
         else:
-            self.html_report += (
-                "<p>Nenhum registro visual disponível para o período selecionado.</p>"
-            )
+            self.html_report += "<p>Nenhum registro visual disponível.</p>"
 
         self.html_report += """
             <h2>Conclusão</h2>
-            <p>O monitoramento constante e as ações corretivas recomendadas são fundamentais para garantir qualidade.</p>
+            <div class="card">
+                <p>
+                    O monitoramento contínuo permitiu identificar padrões de defeitos e momentos críticos 
+                    no processo produtivo. Recomenda-se intensificar ações corretivas principalmente nas datas 
+                    com maior incidência e acompanhar de perto o defeito mais recorrente.
+                </p>
+            </div>
         </body>
         </html>
         """
 
+        # 🔹 Atualiza tela
         self.report_display.setHtml(self.html_report)
         self.export_btn.setEnabled(True)
+
+        # 🔹 Gera PDF a partir do HTML
+        pdf_file = (
+            builtins.BASE_DIR
+            / "cadastros"
+            / company
+            / "reports"
+            / f"relatorio_{day_folder_name}.pdf"
+        )
+        pdf_file.parent.mkdir(parents=True, exist_ok=True)
+        from xhtml2pdf import pisa
+
+        with open(pdf_file, "w+b") as f:
+            pisa.CreatePDF(self.html_report, dest=f)
+
+        print(f"✅ Relatório PDF gerado: {pdf_file}")
+        print(f"✅ Relatório JSON consolidado: {json_file}")
 
     def export_pdf(self):
         if not self.html_report:

@@ -88,14 +88,18 @@ class HistoryView(QWidget):
 
     # ---------------- Empresas ----------------
     def load_companies(self):
-        """Carrega lista de empresas a partir da pasta cadastros"""
+        """Carrega lista de empresas a partir da pasta cadastros (sem duplicação)."""
         cadastros_dir = builtins.BASE_DIR / "cadastros"
         if not cadastros_dir.exists():
             return
 
+        added = set()
         for company_dir in cadastros_dir.iterdir():
             if company_dir.is_dir():
-                self.company_combo.addItem(company_dir.name)
+                safe_name = company_dir.name.strip()
+                if safe_name not in added:
+                    self.company_combo.addItem(safe_name)
+                    added.add(safe_name)
 
     # ---------------- Relatórios ----------------
     def load_reports(self):
@@ -213,43 +217,122 @@ class HistoryView(QWidget):
         QMessageBox.information(self, "Exportar", f"Relatório exportado: {file_name}")
 
     def _generate_html_report(self, data):
-        company = data.get("company", "Desconhecida")
-        date_from = data.get("date_from", "")
-        date_to = data.get("date_to", "")
+        """Gera HTML completo do histórico com imagens e estatísticas"""
+        company = data.get("company", "Desconhecida").strip()
+        date = data.get("date", "")
         defects = data.get("defects", {})
 
-        defects_html = ""
+        # Diretórios base
+        cadastros_dir = builtins.BASE_DIR / "cadastros"
+        company_dir = cadastros_dir / company
+        reports_dir = company_dir / "reports"
+
+        # ---------- KPIs ----------
+        total_bags = 0
+        total_defects = 0
+        defects_by_type = {}
+        defects_by_date = {}
+
         for date_str, bags in defects.items():
-            defects_html += f"<h3>{date_str}</h3><ul>"
-            for bag, defect_types in bags.items():
-                defects_html += f"<li><b>{bag.upper()}</b><ul>"
-                for defect, info in defect_types.items():
-                    # info pode ser apenas contagem ou dict com imagens
-                    if isinstance(info, dict) and "count" in info:
-                        count = info["count"]
-                        defects_html += f"<li>{defect.capitalize()}: {count}</li>"
+            defects_count_date = 0
+            for bag_id, bag_defects in bags.items():
+                total_bags += 1
+                for defect, value in bag_defects.items():
+                    # Corrige bug: value pode ser int ou dict com {"count": int}
+                    count = value["count"] if isinstance(value, dict) else value
+                    defects_by_type[defect] = defects_by_type.get(defect, 0) + count
+                    defects_count_date += count
+            defects_by_date[date_str] = defects_count_date
+            total_defects += defects_count_date
 
-                        # se tiver imagens
-                        for img_path in info.get("images", []):
-                            try:
-                                with open(img_path, "rb") as imgf:
-                                    b64 = base64.b64encode(imgf.read()).decode("utf-8")
-                                    defects_html += f"<br><img src='data:image/png;base64,{b64}' style='max-width:400px; margin:5px;'>"
-                            except Exception as e:
-                                print(f"⚠️ Erro ao carregar imagem {img_path}: {e}")
-                defects_html += "</ul></li>"
-            defects_html += "</ul>"
+        defect_rate = (total_defects / total_bags * 100) if total_bags > 0 else 0
+        top_defect = (
+            max(defects_by_type.items(), key=lambda x: x[1])[0]
+            if defects_by_type
+            else "Nenhum"
+        )
+        dates_sorted = sorted(defects_by_date.items(), key=lambda x: x[1], reverse=True)
+        dates_with_most_defects = (
+            ", ".join([d[0] for d in dates_sorted[:3]]) if dates_sorted else "Nenhuma"
+        )
 
-        return f"""
+        # ---------- Buscar imagens ----------
+        images_html = ""
+        img_paths = []
+
+        try:
+            dt = datetime.strptime(date, "%d/%m/%Y")
+            day_folder = reports_dir / dt.strftime("%d-%m-%Y")
+        except Exception:
+            day_folder = reports_dir / date.replace("/", "-")
+
+        if day_folder.exists():
+            img_paths = list(day_folder.glob("*.jpg")) + list(day_folder.glob("*.png"))
+
+        if img_paths:
+            for img_path in img_paths:
+                try:
+                    with open(img_path, "rb") as imgf:
+                        b64 = base64.b64encode(imgf.read()).decode("utf-8")
+                        images_html += f"""
+                        <div style='width:200px; display:inline-block; margin:10px; text-align:center;'>
+                            <img src='data:image/png;base64,{b64}' style='width:100%; height:auto; border:1px solid #ccc; padding:3px;'/>
+                            <div style='font-size:10pt; margin-top:5px;'>{img_path.stem}</div>
+                        </div>
+                        """
+                except Exception as e:
+                    print(f"⚠️ Erro ao carregar imagem {img_path}: {e}")
+            feedback_msg = f"✅ {len(img_paths)} imagens encontradas em {day_folder}"
+        else:
+            images_html = (
+                "<p>⚠ Nenhum registro visual disponível para este relatório.</p>"
+            )
+            feedback_msg = f"⚠ Nenhuma imagem encontrada em {day_folder}"
+
+        print(feedback_msg)
+        QMessageBox.information(self, "Histórico", feedback_msg)
+
+        # ---------- Montar HTML ----------
+        defects_by_type_html = "".join(
+            f"<li>{defect.capitalize()}: {count}</li>"
+            for defect, count in defects_by_type.items()
+        )
+        defects_by_date_html = "".join(
+            f"<li>{date}: {count} defeito(s)</li>" for date, count in dates_sorted
+        )
+
+        html = f"""
         <html>
-        <head><meta charset="UTF-8"><title>Relatório</title></head>
+        <head>
+            <meta charset="UTF-8">
+            <title>Histórico - {company}</title>
+        </head>
         <body style="font-family: Arial; margin: 20px;">
-            <h1 style="color: #2E8B57;">Relatório de Inspeções</h1>
-            <p><b>Empresa:</b> {company}</p>
-            <p><b>Período:</b> {date_from} a {date_to}</p>
-            <p><b>Data de emissão:</b> {data.get("generated_at","")}</p>
-            <h2>Resumo de Defeitos</h2>
-            {defects_html}
+            <h1 style="color:#2E8B57;">Histórico de Relatórios</h1>
+            <h2>Empresa: {company}</h2>
+            <p><b>Data:</b> {date}</p>
+
+            <h2>Resumo Executivo</h2>
+            <ul>
+                <li>Sacolas Inspecionadas: {total_bags}</li>
+                <li>⚠ Defeitos Identificados: {total_defects}</li>
+                <li>Taxa de Defeitos: {defect_rate:.2f}%</li>
+                <li>Defeito Mais Frequente: {top_defect}</li>
+                <li>Datas com Mais Defeitos: {dates_with_most_defects}</li>
+            </ul>
+
+            <h2>Distribuição de Defeitos</h2>
+            <ul>{defects_by_type_html}</ul>
+
+            <h2>Defeitos por Data</h2>
+            <ul>{defects_by_date_html}</ul>
+
+            <h2>Registros Visuais</h2>
+            {images_html}
+
+            <h2>Conclusão</h2>
+            <p>O acompanhamento diário permite identificar falhas recorrentes e agir preventivamente.</p>
         </body>
         </html>
         """
+        return html
