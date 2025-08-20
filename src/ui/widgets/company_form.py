@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import pyqtSignal
 import re
+import builtins
 
 
 class CompanyForm(QWidget):
@@ -115,11 +116,7 @@ class CompanyForm(QWidget):
 
     def check_duplicate_cnpj(self, cnpj):
         """Verifica se já existe uma empresa com o mesmo CNPJ cadastrado."""
-        base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Bags":
-            base_dir = base_dir.parent
-
-        cadastros_dir = base_dir / "cadastros"
+        cadastros_dir = builtins.BASE_DIR / "cadastros"
 
         if not cadastros_dir.exists():
             return False
@@ -223,13 +220,8 @@ class CompanyForm(QWidget):
         }
 
         # Caminho do diretório de cadastro
-        base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Bags":
-            base_dir = base_dir.parent
-
-        empresa_dir = base_dir / "cadastros" / name
+        empresa_dir = builtins.BASE_DIR / "cadastros" / name
         empresa_dir.mkdir(parents=True, exist_ok=True)
-
         json_path = empresa_dir / f"{name}.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)

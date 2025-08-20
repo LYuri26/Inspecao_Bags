@@ -1,0 +1,27 @@
+{
+    "company": "Lenon Yuri",
+    "date": "2025-08-20",
+    "generated_at": "2025-08-20 00:43:38",
+    "defects": {
+        "20/08/2025": {
+            "bag3": {
+                "cam9": {
+                    "count": 1,
+                    "images": []
+                }
+            },
+            "bag2": {
+                "cam9": {
+                    "count": 2,
+                    "images": []
+                }
+            },
+            "bag1": {
+                "cam9": {
+                    "count": 1,
+                    "images": []
+                }
+            }
+        }
+    }
+}

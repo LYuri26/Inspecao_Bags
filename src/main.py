@@ -8,10 +8,14 @@ from src.ui.main_window.window import MainWindow
 from src.detector.detector import BagDetector
 from pathlib import Path
 from src.ui.start_menu import StartMenu
+import builtins
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# main.py
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def configure_dpi():
@@ -67,4 +71,7 @@ def main():
 
 
 if __name__ == "__main__":
+    import builtins
+
+    builtins.BASE_DIR = BASE_DIR  # <-- define aqui primeiro
     sys.exit(main())

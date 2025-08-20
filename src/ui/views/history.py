@@ -20,6 +20,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 import base64
+import builtins
 
 
 class HistoryView(QWidget):
@@ -88,11 +89,7 @@ class HistoryView(QWidget):
     # ---------------- Empresas ----------------
     def load_companies(self):
         """Carrega lista de empresas a partir da pasta cadastros"""
-        base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Bags":
-            base_dir = base_dir.parent
-        cadastros_dir = base_dir / "cadastros"
-
+        cadastros_dir = builtins.BASE_DIR / "cadastros"
         if not cadastros_dir.exists():
             return
 
@@ -108,10 +105,7 @@ class HistoryView(QWidget):
             QMessageBox.warning(self, "Histórico", "Selecione uma empresa.")
             return
 
-        base_dir = Path(__file__).resolve()
-        while base_dir.name != "Inspecao_Bags":
-            base_dir = base_dir.parent
-        docs_dir = base_dir / "cadastros" / company / "documents"
+        docs_dir = builtins.BASE_DIR / "cadastros" / company / "documents"
 
         if not docs_dir.exists():
             QMessageBox.information(
