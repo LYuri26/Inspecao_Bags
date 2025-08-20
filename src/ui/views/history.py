@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QComboBox,
     QApplication,
+    QCompleter,
 )
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtPrintSupport import QPrinter
@@ -29,11 +30,20 @@ class HistoryView(QWidget):
         self.parent = parent
         self.reports = []
 
-        # captura resolução da tela para ajustar escala
-        screen = QApplication.primaryScreen().size()
-        self.scale_factor = screen.width() / 1920  # base FullHD
-
+        # captura resolução inicial da tela
+        self._update_scale_factor()
         self.setup_ui()
+        self.showMaximized()  # abre apenas uma vez
+
+    def _update_scale_factor(self):
+        """Atualiza o fator de escala baseado no tamanho atual da tela"""
+        screen = QApplication.primaryScreen().size()
+        self.scale_factor = max(1.0, min(screen.width() / 1920, 2.0))
+
+    def resizeEvent(self, event):
+        """Mantém responsividade quando a janela é redimensionada"""
+        self._update_scale_factor()
+        super().resizeEvent(event)
 
     def setup_ui(self):
         self.layout = QVBoxLayout(self)
@@ -41,20 +51,26 @@ class HistoryView(QWidget):
 
         # ---------------- Filtros ----------------
         filter_layout = QHBoxLayout()
+
+        label_style = f"font-size: {int(14*self.scale_factor)}px; font-weight: bold;"
+
         self.company_combo = QComboBox()
         self.company_combo.setStyleSheet(
-            f"font-size: {int(12*self.scale_factor)}px; padding:4px;"
+            f"font-size: {int(14*self.scale_factor)}px; padding:6px;"
         )
 
         self.date_from = QDateEdit()
         self.date_from.setDate(QDate.currentDate().addDays(-7))
+        self.date_from.setStyleSheet(label_style)
+
         self.date_to = QDateEdit()
         self.date_to.setDate(QDate.currentDate())
+        self.date_to.setStyleSheet(label_style)
 
         self.load_btn = QPushButton("Carregar Relatórios")
-        self.load_btn.setMinimumHeight(int(35 * self.scale_factor))
+        self.load_btn.setMinimumHeight(int(40 * self.scale_factor))
         self.load_btn.setStyleSheet(
-            f"font-size: {int(12*self.scale_factor)}px; font-weight: bold; padding:6px;"
+            f"font-size: {int(14*self.scale_factor)}px; font-weight: bold; padding:8px;"
         )
 
         filter_layout.addWidget(QLabel("Empresa:"))
@@ -73,10 +89,13 @@ class HistoryView(QWidget):
             ["Data", "Arquivo", "Defeito", "Empresa", "Resumo", "Ações"]
         )
 
+        # altura das linhas proporcional
+        self.table.verticalHeader().setDefaultSectionSize(int(35 * self.scale_factor))
+
         header = self.table.horizontalHeader()
         for i in range(5):
             header.setSectionResizeMode(i, QHeaderView.Stretch)
-        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # coluna de botões
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
 
         self.layout.addWidget(self.table)
 
@@ -92,6 +111,13 @@ class HistoryView(QWidget):
         cadastros_dir = builtins.BASE_DIR / "cadastros"
         if not cadastros_dir.exists():
             return
+
+        self.company_combo.clear()
+        self.company_combo.setEditable(True)
+        self.company_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.company_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.company_combo.lineEdit().setPlaceholderText("Pesquisar empresa...")
+        self.company_combo.lineEdit().setClearButtonEnabled(True)
 
         added = set()
         for company_dir in cadastros_dir.iterdir():
@@ -110,7 +136,6 @@ class HistoryView(QWidget):
             return
 
         docs_dir = builtins.BASE_DIR / "cadastros" / company / "documents"
-
         if not docs_dir.exists():
             QMessageBox.information(
                 self, "Histórico", "Nenhum relatório encontrado para esta empresa."
@@ -213,8 +238,9 @@ class HistoryView(QWidget):
         printer.setOutputFormat(QPrinter.PdfFormat)
         printer.setOutputFileName(file_name)
         doc.print_(printer)
-
-        QMessageBox.information(self, "Exportar", f"Relatório exportado: {file_name}")
+        QMessageBox.information(
+            self, "Histórico", f"Relatório exportado para {file_name}"
+        )
 
     def _generate_html_report(self, data):
         """Gera HTML completo do histórico com imagens e estatísticas"""
