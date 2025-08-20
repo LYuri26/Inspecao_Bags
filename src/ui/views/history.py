@@ -219,13 +219,11 @@ class HistoryView(QWidget):
     def _generate_html_report(self, data):
         """Gera HTML completo do histórico com imagens e estatísticas"""
         company = data.get("company", "Desconhecida").strip()
-        date = data.get("date", "")
         defects = data.get("defects", {})
 
-        # Diretórios base
+        # Diretório base da empresa
         cadastros_dir = builtins.BASE_DIR / "cadastros"
         company_dir = cadastros_dir / company
-        reports_dir = company_dir / "reports"
 
         # ---------- KPIs ----------
         total_bags = 0
@@ -233,15 +231,39 @@ class HistoryView(QWidget):
         defects_by_type = {}
         defects_by_date = {}
 
+        images_html = ""
+
         for date_str, bags in defects.items():
             defects_count_date = 0
             for bag_id, bag_defects in bags.items():
                 total_bags += 1
                 for defect, value in bag_defects.items():
-                    # Corrige bug: value pode ser int ou dict com {"count": int}
-                    count = value["count"] if isinstance(value, dict) else value
+                    # value = {"count": int, "images": [...]}
+                    count = (
+                        value.get("count", 0) if isinstance(value, dict) else int(value)
+                    )
                     defects_by_type[defect] = defects_by_type.get(defect, 0) + count
                     defects_count_date += count
+
+                    # ---- imagens vindas do JSON ----
+                    if isinstance(value, dict):
+                        for rel_path in value.get("images", []):
+                            abs_path = company_dir / rel_path  # monta absoluto
+                            if abs_path.exists():
+                                try:
+                                    with open(abs_path, "rb") as imgf:
+                                        b64 = base64.b64encode(imgf.read()).decode(
+                                            "utf-8"
+                                        )
+                                        images_html += f"""
+                                        <div style='width:200px; display:inline-block; margin:10px; text-align:center;'>
+                                            <img src='data:image/png;base64,{b64}' style='width:100%; height:auto; border:1px solid #ccc; padding:3px;'/>
+                                            <div style='font-size:10pt; margin-top:5px;'>{rel_path}</div>
+                                        </div>
+                                        """
+                                except Exception as e:
+                                    print(f"⚠️ Erro ao carregar {abs_path}: {e}")
+
             defects_by_date[date_str] = defects_count_date
             total_defects += defects_count_date
 
@@ -255,42 +277,6 @@ class HistoryView(QWidget):
         dates_with_most_defects = (
             ", ".join([d[0] for d in dates_sorted[:3]]) if dates_sorted else "Nenhuma"
         )
-
-        # ---------- Buscar imagens ----------
-        images_html = ""
-        img_paths = []
-
-        try:
-            dt = datetime.strptime(date, "%d/%m/%Y")
-            day_folder = reports_dir / dt.strftime("%d-%m-%Y")
-        except Exception:
-            day_folder = reports_dir / date.replace("/", "-")
-
-        if day_folder.exists():
-            img_paths = list(day_folder.glob("*.jpg")) + list(day_folder.glob("*.png"))
-
-        if img_paths:
-            for img_path in img_paths:
-                try:
-                    with open(img_path, "rb") as imgf:
-                        b64 = base64.b64encode(imgf.read()).decode("utf-8")
-                        images_html += f"""
-                        <div style='width:200px; display:inline-block; margin:10px; text-align:center;'>
-                            <img src='data:image/png;base64,{b64}' style='width:100%; height:auto; border:1px solid #ccc; padding:3px;'/>
-                            <div style='font-size:10pt; margin-top:5px;'>{img_path.stem}</div>
-                        </div>
-                        """
-                except Exception as e:
-                    print(f"⚠️ Erro ao carregar imagem {img_path}: {e}")
-            feedback_msg = f"✅ {len(img_paths)} imagens encontradas em {day_folder}"
-        else:
-            images_html = (
-                "<p>⚠ Nenhum registro visual disponível para este relatório.</p>"
-            )
-            feedback_msg = f"⚠ Nenhuma imagem encontrada em {day_folder}"
-
-        print(feedback_msg)
-        QMessageBox.information(self, "Histórico", feedback_msg)
 
         # ---------- Montar HTML ----------
         defects_by_type_html = "".join(
@@ -310,7 +296,6 @@ class HistoryView(QWidget):
         <body style="font-family: Arial; margin: 20px;">
             <h1 style="color:#2E8B57;">Histórico de Relatórios</h1>
             <h2>Empresa: {company}</h2>
-            <p><b>Data:</b> {date}</p>
 
             <h2>Resumo Executivo</h2>
             <ul>
@@ -328,7 +313,7 @@ class HistoryView(QWidget):
             <ul>{defects_by_date_html}</ul>
 
             <h2>Registros Visuais</h2>
-            {images_html}
+            {images_html if images_html else "<p>⚠ Nenhuma imagem encontrada.</p>"}
 
             <h2>Conclusão</h2>
             <p>O acompanhamento diário permite identificar falhas recorrentes e agir preventivamente.</p>

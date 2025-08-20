@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtPrintSupport import QPrinter
 from PyQt5.QtGui import QTextDocument
 from PyQt5.QtCore import QDate, Qt
+from pathlib import Path
 import json
 import builtins
 
@@ -142,10 +143,19 @@ class ReportsView(QWidget):
                 try:
                     with open(json_file, "r", encoding="utf-8") as f:
                         company_data = json.load(f)
-                        companies.append(company_data.get("name", company_folder.name))
+                        # 🔹 Sempre usar o nome do JSON se existir
+                        company_name = company_data.get("name")
+                        if company_name:
+                            companies.append(company_name.strip())
+                        else:
+                            companies.append(company_folder.name.strip())
                 except Exception as e:
                     print(f"Erro ao carregar {json_file}: {e}")
+            else:
+                companies.append(company_folder.name.strip())
 
+        # 🔹 Remover duplicatas mantendo apenas nomes únicos
+        companies = list(dict.fromkeys(companies))
         return sorted(companies, key=lambda x: x.lower())
 
     def load_companies(self):
@@ -167,14 +177,18 @@ class ReportsView(QWidget):
 
     def generate_report(self):
         """
-        Gera relatório completo (HTML, PDF e JSON) para a empresa selecionada.
-        Só contabiliza defeitos a partir da empresa ativa.
+        Gera relatório completo (HTML e JSON) para a empresa selecionada.
+        Inclui caminhos das imagens em cada defeito no JSON.
+        Usa caminhos relativos para funcionar em outros computadores.
         """
         if not self.selected_company:
             print("⚠️ Nenhuma empresa ativa selecionada. Relatório não gerado.")
             return
 
         company = self.selected_company.strip()
+        cadastros_dir = builtins.BASE_DIR / "cadastros"
+        company_dir = cadastros_dir / company
+
         date_from = self.date_from.date()
         date_to = self.date_to.date()
 
@@ -184,16 +198,29 @@ class ReportsView(QWidget):
             print(f"ℹ️ Nenhum defeito encontrado para {company} no período.")
             return
 
-        # 🔹 Resumo de defeitos (data → bag → tipo)
+        # 🔹 Resumo de defeitos (data → bag → defeito → {count, images})
         defect_summary_data = {}
         for img in images:
             date_str = img["date"]
             bag_id = img["bag"]
             defect = img["defect"]
-            defect_summary_data.setdefault(date_str, {}).setdefault(
+            img_path = Path(img["path"])
+
+            bag_defects = defect_summary_data.setdefault(date_str, {}).setdefault(
                 bag_id, {}
-            ).setdefault(defect, 0)
-            defect_summary_data[date_str][bag_id][defect] += 1
+            )
+            entry = bag_defects.setdefault(defect, {"count": 0, "images": []})
+
+            entry["count"] += 1
+
+            # Gera caminho relativo a partir da pasta da empresa
+            try:
+                relative_path = str(img_path.relative_to(company_dir))
+            except ValueError:
+                relative_path = str(img_path)  # fallback para absoluto se der erro
+
+            if relative_path not in entry["images"]:
+                entry["images"].append(relative_path)
 
         # 🔹 Consolida / atualiza relatório diário no JSON
         defect_summary = ReportsView.generate_defect_summary(
@@ -210,7 +237,14 @@ class ReportsView(QWidget):
             / day_folder_name
             / f"summary_{day_folder_name}.json"
         )
-        print(f"✅ Relatório JSON consolidado: {json_file}")
+        json_file.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with open(json_file, "w", encoding="utf-8") as f:
+                json.dump(defect_summary, f, indent=4, ensure_ascii=False)
+            print(f"✅ Relatório JSON consolidado: {json_file}")
+        except Exception as e:
+            print(f"❌ Erro ao salvar JSON: {e}")
 
         # 🔹 KPIs
         total_bags, total_defects, defects_by_type, defects_by_date = 0, 0, {}, {}
@@ -219,7 +253,7 @@ class ReportsView(QWidget):
             for bag_id, defects in bags.items():
                 total_bags += 1
                 for defect, values in defects.items():
-                    count = values["count"] if isinstance(values, dict) else values
+                    count = values["count"]
                     defects_by_type[defect] = defects_by_type.get(defect, 0) + count
                     defects_count_date += count
             defects_by_date[date_str] = defects_count_date
@@ -236,7 +270,7 @@ class ReportsView(QWidget):
             ", ".join([d[0] for d in dates_sorted[:3]]) if dates_sorted else "Nenhuma"
         )
 
-        # 🔹 HTML bonito e estruturado
+        # 🔹 HTML (usando caminho relativo no <img>)
         defects_by_type_html = "".join(
             f"<li>{defect.capitalize()}: {count}</li>"
             for defect, count in defects_by_type.items()
@@ -245,85 +279,57 @@ class ReportsView(QWidget):
             f"<li>{date}: {count} defeito(s)</li>" for date, count in dates_sorted
         )
 
+        images_html = ""
+        for date_str, bags in defect_summary["defects"].items():
+            for bag_id, defects in bags.items():
+                for defect, values in defects.items():
+                    for img_rel in values.get("images", []):
+                        img_path = company_dir / img_rel
+                        images_html += f"""
+                        <div style='width:200px; border:1px solid #ddd; margin:5px; padding:5px;'>
+                            <img src='file://{img_path}' style='width:100%; height:auto;' />
+                            <div style='text-align:center; font-size:10pt; margin-top:5px;'>
+                                {date_str} - {bag_id.upper()} - {defect.capitalize()}
+                            </div>
+                        </div>
+                        """
+
         self.html_report = f"""
         <html>
         <head>
             <meta charset="UTF-8">
-            <title>Relatório de Inspeções</title>
             <style>
-                body {{ font-family: Arial, sans-serif; margin: 30px; color: #333; }}
-                h1 {{ color: #2E8B57; border-bottom: 2px solid #2E8B57; padding-bottom: 5px; }}
-                h2 {{ color: #2E8B57; margin-top: 25px; }}
-                .card {{ border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }}
-                .kpi {{ font-size: 18px; margin: 5px 0; }}
-                .images {{ display: flex; flex-wrap: wrap; gap: 15px; }}
-                .img-box {{ width: 200px; border: 1px solid #ddd; padding: 5px; border-radius: 5px; }}
-                .img-box img {{ width: 100%; height: auto; }}
-                .img-caption {{ text-align: center; font-size: 10pt; margin-top: 5px; }}
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                h1 {{ color: #2E86C1; }}
+                .section {{ margin-bottom: 20px; }}
             </style>
         </head>
         <body>
-            <h1>Relatório de Inspeções</h1>
-            <div class="card">
-                <p><b>Empresa:</b> {company}</p>
-                <p><b>Período:</b> {date_from.toString("dd/MM/yyyy")} a {date_to.toString("dd/MM/yyyy")}</p>
-                <p><b>Data de emissão:</b> {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>
+            <h1>Relatório de Defeitos - {company}</h1>
+            <p><b>Período:</b> {date_from.toString("dd/MM/yyyy")} até {date_to.toString("dd/MM/yyyy")}</p>
+
+            <div class="section">
+                <h2>Métricas Gerais</h2>
+                <p>📦 Sacolas Inspecionadas: {total_bags}</p>
+                <p>⚠️ Defeitos Identificados: {total_defects}</p>
+                <p>📊 Taxa de Defeitos: {defect_rate:.2f}%</p>
+                <p>🏷️ Defeito Mais Frequente: {top_defect}</p>
+                <p>📅 Datas com Mais Defeitos: {dates_with_most_defects}</p>
             </div>
 
-            <h2>Resumo Executivo</h2>
-            <div class="card">
-                <p>
-                    Entre <b>{date_from.toString("dd/MM/yyyy")}</b> e <b>{date_to.toString("dd/MM/yyyy")}</b>, 
-                    a inspeção da empresa <b>{company}</b> analisou um total de <b>{total_bags}</b> sacolas, 
-                    identificando <b>{total_defects}</b> defeitos. 
-                    A taxa média de defeitos foi de <b>{defect_rate:.2f}%</b>. 
-                    O defeito mais frequente foi <b>{top_defect.capitalize()}</b>.
-                </p>
-            </div>
-
-            <h2>Indicadores-Chave</h2>
-            <div class="card">
-                <div class="kpi">📦 Sacolas Inspecionadas: <b>{total_bags}</b></div>
-                <div class="kpi">⚠️ Defeitos Identificados: <b>{total_defects}</b></div>
-                <div class="kpi">📊 Taxa de Defeitos: <b>{defect_rate:.2f}%</b></div>
-                <div class="kpi">🏆 Defeito Mais Frequente: <b>{top_defect.capitalize()}</b></div>
-                <div class="kpi">📅 Datas com Mais Defeitos: {dates_with_most_defects}</div>
-            </div>
-
-            <h2>Distribuição dos Defeitos</h2>
-            <div class="card">
-                <h3>Por Tipo</h3>
+            <div class="section">
+                <h2>Resumo por Tipo de Defeito</h2>
                 <ul>{defects_by_type_html}</ul>
-                <h3>Por Data</h3>
+            </div>
+
+            <div class="section">
+                <h2>Resumo por Data</h2>
                 <ul>{defects_by_date_html}</ul>
             </div>
 
-            <h2>Registros Visuais</h2>
-        """
-
-        if images:
-            self.html_report += "<div class='images'>"
-            for img in images:
-                self.html_report += f"""
-                <div class='img-box'>
-                    <img src='file://{img['path']}' />
-                    <div class='img-caption'>
-                        {img['date']} - {img['bag'].upper()} - {img['defect'].capitalize()}
-                    </div>
-                </div>
-                """
-            self.html_report += "</div>"
-        else:
-            self.html_report += "<p>Nenhum registro visual disponível.</p>"
-
-        self.html_report += """
-            <h2>Conclusão</h2>
-            <div class="card">
-                <p>
-                    O monitoramento contínuo permitiu identificar padrões de defeitos e momentos críticos 
-                    no processo produtivo. Recomenda-se intensificar ações corretivas principalmente nas datas 
-                    com maior incidência e acompanhar de perto o defeito mais recorrente.
-                </p>
+            <div class="section">
+                <h2>Registros Visuais</h2>
+                <div style='display:flex; flex-wrap:wrap;'>{images_html}</div>
             </div>
         </body>
         </html>
@@ -332,23 +338,6 @@ class ReportsView(QWidget):
         # 🔹 Atualiza tela
         self.report_display.setHtml(self.html_report)
         self.export_btn.setEnabled(True)
-
-        # 🔹 Gera PDF a partir do HTML
-        pdf_file = (
-            builtins.BASE_DIR
-            / "cadastros"
-            / company
-            / "reports"
-            / f"relatorio_{day_folder_name}.pdf"
-        )
-        pdf_file.parent.mkdir(parents=True, exist_ok=True)
-        from xhtml2pdf import pisa
-
-        with open(pdf_file, "w+b") as f:
-            pisa.CreatePDF(self.html_report, dest=f)
-
-        print(f"✅ Relatório PDF gerado: {pdf_file}")
-        print(f"✅ Relatório JSON consolidado: {json_file}")
 
     def export_pdf(self):
         if not self.html_report:
@@ -472,74 +461,58 @@ class ReportsView(QWidget):
         """
 
     @staticmethod
-    def generate_defect_summary(company_name, defect_summary, date_from, date_to):
+    def generate_defect_summary(
+        company: str, defect_summary_data: dict, date_from, date_to
+    ):
         """
-        Gera ou atualiza o relatório de defeitos em JSON único por dia.
-        Salva em: cadastros/<empresa>/documents/YYYY-MM-DD/summary_YYYY-MM-DD.json
-        Retorna o dicionário consolidado.
+        Consolida/atualiza relatório diário em JSON.
+        Sobrescreve os defeitos do dia atual para evitar duplicações.
         """
+
         from datetime import datetime
         import json
-        import builtins
 
-        # Normaliza nome da empresa
-        safe_name = company_name.strip()
-
-        # Diretório base da empresa
         cadastros_dir = builtins.BASE_DIR / "cadastros"
-        company_dir = cadastros_dir / safe_name
+        company_dir = cadastros_dir / company
         documents_dir = company_dir / "documents"
-        documents_dir.mkdir(parents=True, exist_ok=True)
 
-        # Nome da pasta do dia no formato YYYY-MM-DD
+        # Nome da pasta do dia
         day_folder_name = date_to.toString("yyyy-MM-dd")
-        day_report_dir = documents_dir / day_folder_name
-        day_report_dir.mkdir(parents=True, exist_ok=True)
+        day_folder = documents_dir / day_folder_name
+        day_folder.mkdir(parents=True, exist_ok=True)
 
-        # Arquivo JSON único por dia
-        json_path = day_report_dir / f"summary_{day_folder_name}.json"
+        json_file = day_folder / f"summary_{day_folder_name}.json"
 
-        # Se já existir, abre para atualizar
-        if json_path.exists():
-            with open(json_path, "r", encoding="utf-8") as jf:
-                summary_data = json.load(jf)
+        # 🔹 Carregar JSON existente (se houver)
+        if json_file.exists():
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    existing_data = json.load(f)
+            except Exception:
+                existing_data = {}
         else:
-            summary_data = {
-                "company": company_name,
-                "date": day_folder_name,
-                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "defects": {},
-            }
+            existing_data = {}
 
-        # Atualiza dados
-        for date_str, bags in defect_summary.items():
-            for bag_id, defects in bags.items():
-                for defect, count in defects.items():
-                    entry = (
-                        summary_data["defects"]
-                        .setdefault(date_str, {})
-                        .setdefault(bag_id, {})
-                        .setdefault(defect, {"count": 0, "images": []})
-                    )
+        defects_consolidated = existing_data.get("defects", {})
 
-                    entry["count"] += count
+        # 🔹 Substituir os dados do dia atual pelos novos
+        for date_str, bags in defect_summary_data.items():
+            defects_consolidated[date_str] = bags  # sobrescreve completamente
 
-                    # Diretório onde ficam as imagens salvas
-                    reports_dir = (
-                        builtins.BASE_DIR
-                        / "cadastros"
-                        / safe_name
-                        / "reports"
-                        / date_str.replace("/", "-")
-                    )
-                    if reports_dir.exists():
-                        for img_file in reports_dir.glob(f"{bag_id}-{defect}*.jpg"):
-                            img_path = str(img_file.resolve())
-                            if img_path not in entry["images"]:
-                                entry["images"].append(img_path)
+        # 🔹 Salvar JSON atualizado
+        final_data = {
+            "company": company,
+            "date_from": date_from.toString("dd/MM/yyyy"),
+            "date_to": date_to.toString("dd/MM/yyyy"),
+            "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            "defects": defects_consolidated,
+        }
 
-        # 🔹 Salva consolidado no JSON diário
-        with open(json_path, "w", encoding="utf-8") as jf:
-            json.dump(summary_data, jf, indent=4, ensure_ascii=False)
+        try:
+            with open(json_file, "w", encoding="utf-8") as f:
+                json.dump(final_data, f, indent=4, ensure_ascii=False)
+            print(f"✅ JSON consolidado salvo em {json_file}")
+        except Exception as e:
+            print(f"❌ Erro ao salvar JSON: {e}")
 
-        return summary_data  # retorna o dicionário para uso no PDF
+        return final_data
