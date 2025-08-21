@@ -68,8 +68,21 @@ class CameraView(BaseCameraUI):
 
     def handle_new_frame(self, camera_id, frame):
         try:
+            # inicializa contador por câmera
+            if camera_id not in self._frame_count:
+                self._frame_count[camera_id] = 0
+            self._frame_count[camera_id] += 1
+
+            # só roda YOLO a cada N frames
+            if self._frame_count[camera_id] % self._process_interval != 0:
+                # usa frame "cru" só para exibir
+                self.current_images[camera_id] = frame
+                return
+
+            # aqui sim roda detecção
             detected_frame = process_detection(self, frame, camera_id=camera_id)
             self.current_images[camera_id] = detected_frame
+
         except Exception as e:
             update_status(
                 self, f"❌ Erro ao processar frame da câmera {camera_id+1}: {e}"
