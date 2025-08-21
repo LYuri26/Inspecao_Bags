@@ -66,6 +66,9 @@ class CameraView(BaseCameraUI):
         self.current_bag_defects = []
         self.current_image = None
 
+        self._frame_count = {}
+        self._process_interval = 5  # só roda YOLO em 1 de cada 5 frames
+
     def handle_new_frame(self, camera_id, frame):
         try:
             # inicializa contador por câmera
