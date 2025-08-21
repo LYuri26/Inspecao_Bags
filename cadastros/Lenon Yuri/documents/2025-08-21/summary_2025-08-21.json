@@ -1,0 +1,50 @@
+{
+    "company": "Lenon Yuri",
+    "date_from": "14/08/2025",
+    "date_to": "21/08/2025",
+    "generated_at": "21/08/2025 10:42:42",
+    "defects": {
+        "21/08/2025": {
+            "bag1": {
+                "cam8": {
+                    "count": 2,
+                    "images": [
+                        "reports\\21-08-2025\\10-41-57-bag1-sujeira-cam8.jpg",
+                        "reports\\21-08-2025\\10-41-59-bag1-sujeira-cam8.jpg"
+                    ]
+                },
+                "cam1": {
+                    "count": 1,
+                    "images": [
+                        "reports\\21-08-2025\\10-41-58-bag1-rasgo-cam1.jpg"
+                    ]
+                },
+                "cam2": {
+                    "count": 1,
+                    "images": [
+                        "reports\\21-08-2025\\10-41-58-bag1-rasgo-cam2.jpg"
+                    ]
+                },
+                "cam4": {
+                    "count": 2,
+                    "images": [
+                        "reports\\21-08-2025\\10-41-58-bag1-rasgo-cam4.jpg",
+                        "reports\\21-08-2025\\10-41-59-bag1-rasgo-cam4.jpg"
+                    ]
+                },
+                "cam7": {
+                    "count": 1,
+                    "images": [
+                        "reports\\21-08-2025\\10-41-59-bag1-corte-cam7.jpg"
+                    ]
+                },
+                "cam5": {
+                    "count": 1,
+                    "images": [
+                        "reports\\21-08-2025\\10-42-01-bag1-rasgo-cam5.jpg"
+                    ]
+                }
+            }
+        }
+    }
+}

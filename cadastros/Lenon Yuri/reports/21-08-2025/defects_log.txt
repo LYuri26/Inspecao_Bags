@@ -1,0 +1,9 @@
+21/08/2025 10:41:57 | Empresa: Lenon Yuri | Câmera: 8 | Sacola: 1 | Defeito: sujeira | Arquivo: 10-41-57-bag1-sujeira-cam8.jpg
+21/08/2025 10:41:58 | Empresa: Lenon Yuri | Câmera: 1 | Sacola: 1 | Defeito: rasgo | Arquivo: 10-41-58-bag1-rasgo-cam1.jpg
+21/08/2025 10:41:58 | Empresa: Lenon Yuri | Câmera: 4 | Sacola: 1 | Defeito: rasgo | Arquivo: 10-41-58-bag1-rasgo-cam4.jpg
+21/08/2025 10:41:58 | Empresa: Lenon Yuri | Câmera: 2 | Sacola: 1 | Defeito: rasgo | Arquivo: 10-41-58-bag1-rasgo-cam2.jpg
+21/08/2025 10:41:58 | Empresa: Lenon Yuri | Câmera: 1 | Sacola: 1 | Defeito: rasgo | Arquivo: 10-41-58-bag1-rasgo-cam1.jpg
+21/08/2025 10:41:59 | Empresa: Lenon Yuri | Câmera: 8 | Sacola: 1 | Defeito: sujeira | Arquivo: 10-41-59-bag1-sujeira-cam8.jpg
+21/08/2025 10:41:59 | Empresa: Lenon Yuri | Câmera: 4 | Sacola: 1 | Defeito: rasgo | Arquivo: 10-41-59-bag1-rasgo-cam4.jpg
+21/08/2025 10:41:59 | Empresa: Lenon Yuri | Câmera: 7 | Sacola: 1 | Defeito: corte | Arquivo: 10-41-59-bag1-corte-cam7.jpg
+21/08/2025 10:42:01 | Empresa: Lenon Yuri | Câmera: 5 | Sacola: 1 | Defeito: rasgo | Arquivo: 10-42-01-bag1-rasgo-cam5.jpg

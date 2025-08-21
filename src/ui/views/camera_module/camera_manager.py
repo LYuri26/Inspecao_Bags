@@ -239,15 +239,15 @@ class CameraManager(QObject):
         # Configuração das URLs RTSP para todas as 9 câmeras
         self.camera_urls: List[Optional[str]] = [
             # "webcam",  # Cam 0 será usada como webcam
-            None,  # "rtsp://admin:Solutions10@@192.168.0.241:554/Streaming/Channels/101",  # Cam 0
-            None,  # "rtsp://admin:Solutions10@@192.168.0.242:554/Streaming/Channels/101",  # Cam 1
-            None,  # "rtsp://admin:Solutions10@@192.168.0.243:554/Streaming/Channels/101",  # Cam 2
-            None,  # "rtsp://admin:Solutions10@@192.168.0.244:554/Streaming/Channels/101",  # Cam 3
-            None,  # "rtsp://admin:Solutions10@@192.168.0.245:554/Streaming/Channels/101",  # Cam 4
-            None,  # "rtsp://admin:Solutions10@@192.168.0.246:554/Streaming/Channels/101",  # Cam 5
-            None,  # "rtsp://admin:Solutions10@@192.168.0.247:554/Streaming/Channels/101",  # Cam 6
-            None,  # "rtsp://admin:Solutions10@@192.168.0.248:554/Streaming/Channels/101",  # Cam 7
-            "rtsp://admin:Evento0128@192.168.1.101:559/Streaming/Channels/101",  # Cam 0  # Cam 8 (reservada para futura expansão)
+            "rtsp://admin:Solutions10@@192.168.0.241:554/Streaming/Channels/101",  # Cam 0
+            "rtsp://admin:Solutions10@@192.168.0.242:554/Streaming/Channels/101",  # Cam 1
+            "rtsp://admin:Solutions10@@192.168.0.243:554/Streaming/Channels/101",  # Cam 2
+            "rtsp://admin:Solutions10@@192.168.0.244:554/Streaming/Channels/101",  # Cam 3
+            "rtsp://admin:Solutions10@@192.168.0.245:554/Streaming/Channels/101",  # Cam 4
+            "rtsp://admin:Solutions10@@192.168.0.246:554/Streaming/Channels/101",  # Cam 5
+            "rtsp://admin:Solutions10@@192.168.0.247:554/Streaming/Channels/101",  # Cam 6
+            "rtsp://admin:Solutions10@@192.168.0.248:554/Streaming/Channels/101",  # Cam 7
+            None,  # "rtsp://admin:Evento0128@192.168.1.101:559/Streaming/Channels/101",  # Cam 0  # Cam 8 (reservada para futura expansão)
         ]
         # Parâmetros leves por padrão (pode ajustar depois)
         self.WIDTH = 320

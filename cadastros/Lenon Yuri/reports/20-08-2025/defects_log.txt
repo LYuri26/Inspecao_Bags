@@ -1,4 +1,0 @@
-20/08/2025 00:27:23 | Empresa: Lenon Yuri | Câmera: 9 | Sacola: 1 | Defeito: rasgo | Arquivo: 00-27-23-bag1-rasgo-cam9.jpg
-20/08/2025 00:27:38 | Empresa: Lenon Yuri | Câmera: 9 | Sacola: 2 | Defeito: rasgo | Arquivo: 00-27-38-bag2-rasgo-cam9.jpg
-20/08/2025 00:27:50 | Empresa: Lenon Yuri | Câmera: 9 | Sacola: 2 | Defeito: rasgo | Arquivo: 00-27-50-bag2-rasgo-cam9.jpg
-20/08/2025 00:27:53 | Empresa: Lenon Yuri | Câmera: 9 | Sacola: 3 | Defeito: rasgo | Arquivo: 00-27-53-bag3-rasgo-cam9.jpg
