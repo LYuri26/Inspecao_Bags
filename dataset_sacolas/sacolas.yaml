@@ -1,5 +1,5 @@
 # sacolas.yaml
-path: ./dataset_sacolas   # relativo ao projeto
+path: .  # relativo ao projeto
 
 train: images/train
 val: images/val
