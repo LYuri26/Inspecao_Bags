@@ -38,6 +38,9 @@ def verificar_estrutura(yaml_path: str):
     base_path = os.path.dirname(yaml_path)
     required_dirs = ["images/train", "labels/train", "images/val", "labels/val"]
 
+    missing = []  # diretórios que não existem
+    empty = []  # diretórios vazios
+
     for dir_path in required_dirs:
         full_path = os.path.join(base_path, dir_path)
         if not os.path.exists(full_path):
@@ -52,7 +55,8 @@ def verificar_estrutura(yaml_path: str):
         if empty:
             msgs.append(f"Diretórios vazios: {', '.join(empty)}")
         raise ValueError("\n".join(msgs))
-    logger.info(f"✅ Estrutura de dados válida em: {base_path}")
+    else:
+        logger.info(f"✅ Estrutura de dados válida em: {base_path}")
 
 
 def configurar_argumentos():
