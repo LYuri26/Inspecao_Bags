@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Classes do dataset (deve corresponder ao config.yaml do treinamento)
-CLASSES = ["Sacola", "rasgo", "corte", "mancha", "descostura", "sujeira"]
+CLASSES = ["Sacola", "Rasgo", "Corte", "Mancha", "Descostura", "Sujeira"]
 
 # Cores para visualização (BGR)
 COLORS = {
