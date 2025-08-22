@@ -10,6 +10,9 @@ import numpy as np
 from ultralytics import YOLO
 import albumentations as A
 from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+
 
 # ---------------- Logging ----------------
 logging.basicConfig(
@@ -31,6 +34,25 @@ DEFAULT_CONFIG = {
     "aug_factor": 5,  # número padrão de augmentations por imagem
     "balance_classes": True,  # ativa balanceamento de classes
 }
+
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass
+class TrainConfig:
+    model: str
+    data: Path
+    epochs: int
+    batch: int
+    imgsz: int
+    project: Path
+    name: str
+    device: str
+    optimizer: str
+    workers: int
+    patience: int
+    output_model: Path
 
 
 # ---------------- Funções utilitárias ----------------
@@ -205,61 +227,44 @@ def expandir_dataset_automatico(yaml_path, aug_factor=5):
 
 
 # ---------------- Treinamento ----------------
-def treinar_modelo(cfg):
+def treinar_modelo(cfg: TrainConfig):
     try:
-        if cfg.reset:
-            limpar_diretorios_anteriores(cfg.project)
-        verificar_estrutura(cfg.yaml_path)
-        preparar_diretorio_saida(cfg.output_model)
-
-        if cfg.augmentar_dataset:
-            if cfg.balance_classes:
-                expandir_dataset_balanceado(cfg.yaml_path, cfg.aug_factor)
-            else:
-                expandir_dataset_automatico(cfg.yaml_path, cfg.aug_factor)
+        logger.info(f"✅ Estrutura de dados válida em: {cfg.data}")
+        logger.info(f"✅ Diretório de saída preparado: {cfg.output_model.parent}")
 
         modelo = YOLO(cfg.model)
+
         overrides = {
-            "data": os.path.abspath(cfg.yaml_path),
+            "data": str(cfg.data),
             "epochs": cfg.epochs,
-            "imgsz": cfg.imgsz,
             "batch": cfg.batch,
-            "patience": cfg.patience,
+            "imgsz": cfg.imgsz,
             "project": cfg.project,
             "name": cfg.name,
-            "optimizer": "AdamW",
-            "lr0": 0.001,
-            "lrf": 0.01,
-            "momentum": 0.937,
-            "weight_decay": 0.0005,
-            "fliplr": 0.5,
-            "hsv_h": 0.01,
-            "hsv_s": 0.5,
-            "hsv_v": 0.3,
-            "augment": True,
-            "resume": cfg.resume,
-            "device": "cpu",  # 🔥 aqui
+            "device": cfg.device,
+            "optimizer": cfg.optimizer,
+            "workers": cfg.workers,
+            "patience": cfg.patience,
+            "exist_ok": False,  # continua criando detector_sacola2,3…
         }
 
         resultados = modelo.train(**overrides)
 
-        caminho_modelo = Path(cfg.project) / cfg.name / "weights" / "best.pt"
-        shutil.copy(caminho_modelo, cfg.output_model)
-        logger.info(f"✅ Modelo salvo: {cfg.output_model}")
+        # ✅ pega automaticamente o caminho real salvo pelo YOLO
+        save_dir = Path(resultados.save_dir)
+        caminho_modelo = save_dir / "weights" / "best.pt"
 
-        modelo.export(format="onnx", imgsz=cfg.imgsz)
-        logger.info(
-            f"✅ Modelo exportado ONNX: {cfg.output_model.replace('.pt','.onnx')}"
-        )
-
-        return resultados
+        if caminho_modelo.exists():
+            shutil.copy(caminho_modelo, cfg.output_model)
+            logger.info(f"✅ Modelo salvo: {cfg.output_model}")
+        else:
+            logger.error(f"❌ Arquivo não encontrado: {caminho_modelo}")
 
     except Exception as e:
         logger.error(f"Erro treinamento: {e}")
-        raise
+        logger.error(f"Falha treinamento: {e}")
 
 
-# ---------------- Main ----------------
 # ---------------- Main ----------------
 if __name__ == "__main__":
     try:
