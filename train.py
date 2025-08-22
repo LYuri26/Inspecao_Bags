@@ -220,7 +220,7 @@ def treinar_modelo(cfg):
 
         modelo = YOLO(cfg.model)
         overrides = {
-            "data": cfg.yaml_path,
+            "data": os.path.abspath(cfg.yaml_path),
             "epochs": cfg.epochs,
             "imgsz": cfg.imgsz,
             "batch": cfg.batch,
