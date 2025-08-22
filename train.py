@@ -284,7 +284,7 @@ if __name__ == "__main__":
             imgsz=cfg_args.imgsz,
             project=Path(cfg_args.project),
             name=cfg_args.name,
-            device="cuda" if torch.cuda.is_available() else "cpu",
+            device="cpu",
             optimizer="AdamW",
             workers=8,
             patience=cfg_args.patience,
