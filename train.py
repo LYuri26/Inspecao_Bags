@@ -259,12 +259,23 @@ def treinar_modelo(cfg):
 
 
 # ---------------- Main ----------------
+# ---------------- Main ----------------
 if __name__ == "__main__":
     try:
         import torch, albumentations as A, cv2
         from ultralytics import YOLO
+        import os
 
         cfg = configurar_argumentos()
+
+        # força caminho absoluto para o YAML (independente de settings.yaml do Ultralytics)
+        yaml_path = os.path.abspath("dataset_sacolas/sacolas.yaml")
+        if not os.path.exists(yaml_path):
+            raise FileNotFoundError(f"Arquivo de dataset não encontrado: {yaml_path}")
+
+        # garante que a config aponte pro yaml correto
+        cfg.data = yaml_path
+
         resultados = treinar_modelo(cfg)
         logger.info("✅ Treinamento finalizado com sucesso!")
 
