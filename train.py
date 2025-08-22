@@ -238,6 +238,7 @@ def treinar_modelo(cfg):
             "hsv_v": 0.3,
             "augment": True,
             "resume": cfg.resume,
+            "device": "cpu",  # 🔥 aqui
         }
 
         resultados = modelo.train(**overrides)
