@@ -279,15 +279,15 @@ if __name__ == "__main__":
         cfg = TrainConfig(
             model=cfg_args.model,
             data=Path(yaml_path),
-            epochs=cfg_args.epochs,
-            batch=cfg_args.batch,
+            epochs=180,  # mais rigoroso
+            batch=2,  # reduzido para não travar CPU
             imgsz=cfg_args.imgsz,
             project=Path(cfg_args.project),
             name=cfg_args.name,
-            device="cpu",
-            optimizer="AdamW",
-            workers=8,
-            patience=cfg_args.patience,
+            device="cpu",  # força CPU
+            optimizer="AdamW",  # mais estável
+            workers=6,  # moderado, evita travar
+            patience=12,  # mais paciência no early stopping
             output_model=Path(cfg_args.output_model),
         )
 
