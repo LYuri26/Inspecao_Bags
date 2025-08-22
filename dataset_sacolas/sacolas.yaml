@@ -1,6 +1,8 @@
-train: ./dataset_sacolas/images/train
-val: ./dataset_sacolas/images/val
-test: ./dataset_sacolas/images/test
+path: ./dataset_sacolas
+
+train: images/train
+val: images/val
+test: images/test
 
 nc: 6
 names:
