@@ -30,7 +30,7 @@ def process_detection(self, frame, camera_id=None):
         return annotated_frame
 
     # 2. Interpretação via Inspector
-    classified = simple_classify(detections, min_confidence=0.5)
+    classified = simple_classify(detections, 2)
     validated = validate_detections(classified)
 
     # Atualiza estado da sacola
