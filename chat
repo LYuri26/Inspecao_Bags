@@ -1,3 +1,1 @@
-
-python -c "from ultralytics.utils import SETTINGS; print(SETTINGS)"
-\Users\User\AppData\Roaming\Ultralytics\settings.yaml)
+datasets_dir: C:\Users\User\Documents\GitHub\Inspecao_Bags
