@@ -1,11 +1,15 @@
+# Diretório base do dataset
 path: ./dataset_sacolas
+
+# Conjuntos de dados
 train: images/train
 val: images/val
+test: images/test
 
-# Number of classes
+# Número de classes
 nc: 6
 
-# Class names
+# Nomes das classes
 names:
   0: Sacola
   1: Rasgo
