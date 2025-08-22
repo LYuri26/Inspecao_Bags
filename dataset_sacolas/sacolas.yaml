@@ -1,4 +1,5 @@
-path: ./dataset_sacolas
+# sacolas.yaml
+path: .   # 👈 sempre relativo à pasta onde o YAML está
 
 train: images/train
 val: images/val
