@@ -1,2 +1,3 @@
 
 python -c "from ultralytics.utils import SETTINGS; print(SETTINGS)"
+\Users\User\AppData\Roaming\Ultralytics\settings.yaml)
