@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # ---------------- Config padrão ----------------
 DEFAULT_CONFIG = {
     "model": "yolov8n.pt",
-    "epochs": 50,
+    "epochs": 100,
     "imgsz": 640,
     "batch": 16,
     "project": "runs/train",
