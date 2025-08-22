@@ -1,88 +1,85 @@
-import sys
 import os
+import random
+import logging
+import time
 import cv2
 from pathlib import Path
-from random import sample
-import time
-
-# Configuração de paths
-project_root = Path(__file__).parent.absolute()
-sys.path.append(str(project_root))
-
 from src.detector.detector import BagDetector
 
-
-def setup_environment():
-    """Configura variáveis de ambiente para evitar warnings do Qt"""
-    os.environ["QT_QPA_PLATFORM"] = "xcb"  # Alternativa para sistemas Linux
-
-
-def select_test_images(dataset_path):
-    """Seleciona imagens para teste de forma balanceada"""
-    train_images = list((dataset_path / "train").glob("*.jpg"))
-    val_images = list((dataset_path / "val").glob("*.jpg"))
-
-    # Seleciona 2 de cada (ou menos se não houver suficientes)
-    num_samples = min(2, len(train_images)), min(2, len(val_images))
-    return [*sample(train_images, num_samples[0]), *sample(val_images, num_samples[1])]
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def process_image(detector, img_path, display_time=5):
-    """Processa uma imagem e mostra os resultados"""
-    print(f"\n🔍 Processando: {img_path.name}")
-
+    """Processa uma imagem, roda o modelo YOLO e exibe as detecções."""
     img = cv2.imread(str(img_path))
     if img is None:
-        print(f"❌ Erro ao carregar a imagem: {img_path}")
+        logger.error(f"❌ Erro ao carregar imagem: {img_path}")
         return
 
-    # Detecção
+    logger.info(f"\n🔍 Processando: {os.path.basename(img_path)}")
+
     start_time = time.time()
-    detections = detector.detect(img)
-    inference_time = (time.time() - start_time) * 1000  # ms
+    results = detector.model(img)  # roda YOLO diretamente
 
-    # Resultados
-    if not detections:
-        print("Nenhum objeto detectado")
+    detections = []
+    for r in results:
+        for box in r.boxes:
+            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+            conf = float(box.conf[0])
+            cls = int(box.cls[0])
+            detections.append(
+                {
+                    "class_name": r.names[cls],
+                    "confidence": conf,
+                    "bbox": [x1, y1, x2, y2],
+                }
+            )
+
+    if detections:
+        result_img = detector.draw_detections(img.copy(), detections)
+        logger.info(f"✅ {len(detections)} objetos detectados")
     else:
-        for d in detections:
-            print(f"- {d['class_name']} (confiança: {d['confidence']:.2f})")
-    print(f"⏱️ Tempo total: {inference_time:.1f}ms")
+        result_img = img.copy()
+        logger.info("⚠️ Nenhum objeto detectado")
 
-    # Visualização
-    result_img = detector.draw_detections(img, detections)
-    cv2.imshow("Resultado - Pressione qualquer tecla para continuar", result_img)
-    cv2.waitKey(display_time * 1000)  # Mostra por N segundos ou até tecla
+    end_time = time.time()
+    logger.info(f"⏱️ Tempo total: {(end_time - start_time) * 1000:.1f}ms")
+
+    # Exibe janela com resultado
+    cv2.imshow("Resultado", result_img)
+    cv2.waitKey(display_time * 1000)
+    cv2.destroyAllWindows()
 
 
 def main():
-    setup_environment()
+    logger.info("Carregando detector...")
 
-    # Configuração de paths
-    model_path = project_root / "modelos" / "detector_sacola.pt"
-    dataset_path = project_root / "dataset_sacolas" / "images"
+    # Caminho correto do modelo
+    model_path = "runs/train/detector_sacola/weights/best.pt"
 
-    # Verificações
-    if not model_path.exists():
-        raise FileNotFoundError(f"Modelo não encontrado em {model_path}")
+    detector = BagDetector(model_path=model_path)
+    logger.info("✅ Detector carregado com sucesso")
 
-    # Carregar detector
-    detector = BagDetector(str(model_path))
-    print("\n✅ Detector carregado com sucesso")
-    print(f"📂 Dataset: {dataset_path}")
+    dataset_dir = Path("dataset_sacolas/images/train")
+    if not dataset_dir.exists():
+        logger.error(f"❌ Diretório não encontrado: {dataset_dir}")
+        return
 
-    # Selecionar imagens
-    test_images = select_test_images(dataset_path)
-    print(f"\n🖼️ Imagens selecionadas para teste:")
-    for img in test_images:
-        print(f"- {img.name}")
+    images = list(dataset_dir.glob("*.jpg")) + list(dataset_dir.glob("*.png"))
+    if not images:
+        logger.error("❌ Nenhuma imagem encontrada no dataset.")
+        return
 
-    # Processar imagens
-    for img_path in test_images:
-        process_image(detector, img_path, display_time=5)
+    selected_images = random.sample(images, min(4, len(images)))
+    logger.info("\n🖼️ Imagens selecionadas para teste:")
+    for img in selected_images:
+        logger.info(f"- {img.name}")
 
-    cv2.destroyAllWindows()
-    print("\n✅ Teste concluído com sucesso")
+    for img_path in selected_images:
+        process_image(detector, img_path)
+
+    logger.info("\n✅ Teste concluído com sucesso")
 
 
 if __name__ == "__main__":
