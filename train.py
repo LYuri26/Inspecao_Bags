@@ -12,7 +12,7 @@ import albumentations as A
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-
+import torch
 
 # ---------------- Logging ----------------
 logging.basicConfig(
@@ -268,29 +268,32 @@ def treinar_modelo(cfg: TrainConfig):
 # ---------------- Main ----------------
 if __name__ == "__main__":
     try:
-        import torch, albumentations as A, cv2
-        from ultralytics import YOLO
-        import os
+        cfg_args = configurar_argumentos()
 
-        cfg = configurar_argumentos()
-
-        # força caminho absoluto para o YAML (independente de settings.yaml do Ultralytics)
+        # força caminho absoluto para o YAML
         yaml_path = os.path.abspath(os.path.join("dataset_sacolas", "sacolas.yaml"))
         if not os.path.exists(yaml_path):
             raise FileNotFoundError(f"Arquivo de dataset não encontrado: {yaml_path}")
 
-        # garante que a config use o yaml correto
-        cfg.yaml_path = yaml_path
-
-        resultados = treinar_modelo(cfg)
-        logger.info("✅ Treinamento finalizado com sucesso!")
-
-    except ImportError as e:
-        logger.error(f"Dependências não encontradas: {e}")
-        logger.info(
-            "Instale: pip install torch albumentations opencv-python ultralytics"
+        # montar objeto TrainConfig corretamente
+        cfg = TrainConfig(
+            model=cfg_args.model,
+            data=Path(yaml_path),
+            epochs=cfg_args.epochs,
+            batch=cfg_args.batch,
+            imgsz=cfg_args.imgsz,
+            project=Path(cfg_args.project),
+            name=cfg_args.name,
+            device="cuda" if torch.cuda.is_available() else "cpu",
+            optimizer="AdamW",
+            workers=8,
+            patience=cfg_args.patience,
+            output_model=Path(cfg_args.output_model),
         )
-        sys.exit(1)
+
+        # chama o treino
+        treinar_modelo(cfg)
+        logger.info("✅ Treinamento finalizado com sucesso!")
 
     except Exception as e:
         logger.error(f"Falha treinamento: {e}")
