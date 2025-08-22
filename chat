@@ -1,0 +1,2 @@
+
+python -c "from ultralytics.utils import SETTINGS; print(SETTINGS)"
