@@ -88,16 +88,24 @@ class TrainingWorker(QObject):
             logger.error(error_output)
 
     def process_output(self, output):
-        if "epoch" in output.lower() and "/" in output:
-            try:
-                parts = output.split()
-                epoch_part = [p for p in parts if "/" in p][0]
-                current, total = map(int, epoch_part.split("/"))
-                progress = int((current / total) * 100)
-                status = f"Época {current}/{total}"
-                self.progress_updated.emit(progress, status)
-            except Exception as e:
-                logger.debug(f"Erro ao processar progresso: {str(e)}")
+        for line in output.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+
+            # Verifica se a linha começa com número (época)
+            first_token = line.split(",")[0].strip()
+            if first_token.isdigit():
+                try:
+                    current_epoch = int(first_token)
+                    total_epochs = int(self.cfg.epochs)
+                    progress = int((current_epoch / total_epochs) * 100)
+                    status = f"Época {current_epoch}/{total_epochs}"
+
+                    # Atualiza barra
+                    self.progress_updated.emit(progress, status)
+                except Exception as e:
+                    logger.debug(f"Erro ao processar progresso: {str(e)}")
 
     def on_process_finished(self, exit_code, exit_status):
         if exit_code == 0 and exit_status == QProcess.NormalExit:

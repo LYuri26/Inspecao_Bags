@@ -50,7 +50,7 @@ def process_image(detector, img_path, display_time=5):
     print(f"⏱️ Tempo total: {inference_time:.1f}ms")
 
     # Visualização
-    result_img = detector.process_frame(img)
+    result_img = detector.draw_detections(img, detections)
     cv2.imshow("Resultado - Pressione qualquer tecla para continuar", result_img)
     cv2.waitKey(display_time * 1000)  # Mostra por N segundos ou até tecla
 
