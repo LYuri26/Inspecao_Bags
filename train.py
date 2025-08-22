@@ -37,7 +37,6 @@ DEFAULT_CONFIG = {
 def verificar_estrutura(yaml_path: str):
     base_path = os.path.dirname(yaml_path)
     required_dirs = ["images/train", "labels/train", "images/val", "labels/val"]
-    missing, empty = [], []
 
     for dir_path in required_dirs:
         full_path = os.path.join(base_path, dir_path)
