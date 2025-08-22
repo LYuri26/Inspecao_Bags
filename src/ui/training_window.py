@@ -74,7 +74,9 @@ class TrainingWorker(QObject):
             self.training_finished.emit(False, f"Erro no treinamento: {str(e)}")
 
     def handle_output(self):
-        output = self.process.readAllStandardOutput().data().decode("utf-8")
+        output = (
+            self.process.readAllStandardOutput().data().decode("utf-8", errors="ignore")
+        )
         if output:
             self.update_console.emit(output)
             self.process_output(output)
