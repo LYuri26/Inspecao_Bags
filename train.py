@@ -269,12 +269,12 @@ if __name__ == "__main__":
         cfg = configurar_argumentos()
 
         # força caminho absoluto para o YAML (independente de settings.yaml do Ultralytics)
-        yaml_path = os.path.abspath("dataset_sacolas/sacolas.yaml")
+        yaml_path = os.path.abspath(os.path.join("dataset_sacolas", "sacolas.yaml"))
         if not os.path.exists(yaml_path):
             raise FileNotFoundError(f"Arquivo de dataset não encontrado: {yaml_path}")
 
-        # garante que a config aponte pro yaml correto
-        cfg.data = yaml_path
+        # garante que a config use o yaml correto
+        cfg.yaml_path = yaml_path
 
         resultados = treinar_modelo(cfg)
         logger.info("✅ Treinamento finalizado com sucesso!")
