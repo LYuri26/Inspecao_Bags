@@ -369,13 +369,12 @@ if __name__ == "__main__":
             imgsz=DEFAULT_CONFIG["imgsz"],
             project=Path(DEFAULT_CONFIG["project"]),
             name=DEFAULT_CONFIG["name"],
-            device=device,
+            device="cpu",  # <---- força CPU
             optimizer="AdamW",
             workers=workers,
             patience=DEFAULT_CONFIG["patience"],
             output_model=Path(DEFAULT_CONFIG["output_model"]),
         )
-
         preparar_diretorio_saida(str(cfg.output_model))
         treinar_em_fases(cfg, patience_start_epoch=150)
 
