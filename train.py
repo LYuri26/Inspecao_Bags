@@ -1,17 +1,17 @@
+#!/usr/bin/env python3
 import os
 import argparse
 import shutil
 from pathlib import Path
 import logging
 import sys
-import cv2
 import random
 import numpy as np
+import torch
 from ultralytics import YOLO
 import albumentations as A
+import cv2
 from collections import defaultdict
-from dataclasses import dataclass
-import torch
 
 # ---------------- Logging ----------------
 logging.basicConfig(
@@ -43,35 +43,12 @@ DEFAULT_CONFIG = {
     "imgsz": 896,
     "batch": 16,
     "project": "runs/train",
-    "name": "detector_sacola_s",
+    "name": "detector_sacola",
     "yaml_path": "dataset_sacolas/sacolas.yaml",
-    "patience": 50,
     "output_model": "modelos/detector_sacola.pt",
     "aug_factor": 10,
     "balance_classes": True,
-    "phase_training": True,
-    "phase1_epochs": 150,
 }
-
-
-@dataclass
-class TrainConfig:
-    model: str
-    data: Path
-    epochs: int
-    batch: int
-    imgsz: int
-    project: Path
-    name: str
-    device: str
-    optimizer: str
-    workers: int
-    patience: int
-    output_model: Path
-    aug_factor: int
-    balance_classes: bool
-    phase_training: bool
-    phase1_epochs: int
 
 
 # ---------------- Funções utilitárias ----------------
@@ -119,9 +96,6 @@ def configurar_argumentos():
         "--augmentar_dataset",
         action="store_true",
         help="Aplicar data augmentation extra",
-    )
-    parser.add_argument(
-        "--resume", action="store_true", help="Retomar treino de modelo existente"
     )
     parser.add_argument(
         "--device",
@@ -313,26 +287,78 @@ def expandir_dataset_automatico(yaml_path, aug_factor=5):
     logger.info(f"✅ Dataset expandido com {total_aug} novas imagens")
 
 
-# ---------------- Treinamento em Duas Fases ----------------
-def treinar_em_fases(cfg: TrainConfig):
-    """Treinamento em duas fases para melhor convergência"""
-    logger.info(f"🧠 Dispositivo de treino: {cfg.device}")
+# ---------------- Early Stopping Condicional ----------------
+class ConditionalEarlyStopping:
+    """
+    Early Stopping que só ativa após a época 150, com patience de 50 épocas
+    """
 
-    # Fase 1: Treinamento inicial sem early stopping
-    logger.info(f"🚀 Iniciando Fase 1 (até época {cfg.phase1_epochs}, sem patience)")
+    def __init__(self, start_epoch=150, patience=50):
+        self.start_epoch = start_epoch
+        self.patience = patience
+        self.best_metric = None
+        self.counter = 0
 
-    modelo = YOLO(cfg.model)
-    resultados_fase1 = modelo.train(
-        data=str(cfg.data),
-        epochs=cfg.phase1_epochs,
-        batch=cfg.batch,
-        imgsz=cfg.imgsz,
-        project=str(cfg.project),
-        name=cfg.name + "_phase1",
-        device=cfg.device,
-        optimizer=cfg.optimizer,
-        workers=cfg.workers,
-        patience=0,  # Sem early stopping na fase 1
+    def __call__(self, trainer):
+        epoch = trainer.epoch
+        metric = trainer.metrics.get("metrics/mAP50-95(B)", None)
+
+        # Antes do epoch 150 → não para nunca
+        if epoch < self.start_epoch:
+            return False
+
+        # Do epoch 150 em diante → ativa early stopping com patience=50
+        if metric is None:
+            return False
+
+        if (self.best_metric is None) or (metric > self.best_metric):
+            self.best_metric = metric
+            self.counter = 0
+        else:
+            self.counter += 1
+
+        if self.counter >= self.patience:
+            logger.info(
+                f"⏹️ EarlyStopping ativado no epoch {epoch} (sem melhora em {self.patience} épocas)"
+            )
+            return True
+        return False
+
+
+# ---------------- Treinamento Principal ----------------
+def treinamento(args):
+    """Executa o treinamento completo"""
+    # Determinar dispositivo (usa sempre o melhor disponível)
+    device = determinar_dispositivo(args.device)
+    logger.info(f"🧠 Dispositivo de treino: {device}")
+
+    # Verificar estrutura do dataset
+    verificar_estrutura(args.yaml_path)
+
+    # Augmentação de dataset se solicitado
+    if args.augmentar_dataset:
+        if args.balance_classes:
+            expandir_dataset_balanceado(args.yaml_path, args.aug_factor)
+        else:
+            expandir_dataset_automatico(args.yaml_path, args.aug_factor)
+
+    # Carregar modelo
+    modelo = YOLO(args.model)
+
+    # Configurar early stopping condicional
+    early_stopping = ConditionalEarlyStopping(start_epoch=150, patience=50)
+
+    # Executar treinamento
+    resultados = modelo.train(
+        data=args.yaml_path,
+        epochs=args.epochs,
+        batch=args.batch,
+        imgsz=args.imgsz,
+        project=args.project,
+        name=args.name,
+        device=device,
+        optimizer="AdamW",
+        workers=max(2, min(8, (os.cpu_count() or 8) - 1)),
         cos_lr=True,
         warmup_epochs=5,
         close_mosaic=10,
@@ -342,92 +368,23 @@ def treinar_em_fases(cfg: TrainConfig):
         lr0=0.01,
         weight_decay=0.0005,
         save_period=10,
-    )
-
-    # Encontrar melhor modelo da fase 1
-    best_model_phase1 = Path(resultados_fase1.save_dir) / "weights" / "best.pt"
-    if not best_model_phase1.exists():
-        raise FileNotFoundError("❌ Nenhum best.pt encontrado após a Fase 1")
-
-    # Fase 2: Treinamento refinado com early stopping
-    logger.info(
-        f"🚀 Iniciando Fase 2 (até época {cfg.epochs}, patience={cfg.patience})"
-    )
-
-    modelo_fase2 = YOLO(str(best_model_phase1))
-    resultados_fase2 = modelo_fase2.train(
-        data=str(cfg.data),
-        epochs=cfg.epochs,
-        batch=cfg.batch,
-        imgsz=cfg.imgsz,
-        project=str(cfg.project),
-        name=cfg.name + "_phase2",
-        device=cfg.device,
-        optimizer=cfg.optimizer,
-        workers=cfg.workers,
-        patience=cfg.patience,
-        resume=False,
-        cos_lr=True,
-        lr0=0.001,  # Learning rate menor na fase 2
-        weight_decay=0.0001,
+        callbacks={"on_fit_epoch_end": early_stopping},
     )
 
     # Salvar modelo final
-    final_model = Path(resultados_fase2.save_dir) / "weights" / "best.pt"
-    if final_model.exists():
-        shutil.copy(final_model, cfg.output_model)
-        logger.info(f"✅ Modelo final salvo em: {cfg.output_model}")
-
-        # Copiar também o último modelo
-        last_model = Path(resultados_fase2.save_dir) / "weights" / "last.pt"
-        if last_model.exists():
-            shutil.copy(last_model, cfg.output_model.parent / "last.pt")
-    else:
-        logger.error("❌ Modelo final não encontrado!")
-
-
-def treinamento_direto(cfg: TrainConfig):
-    """Treinamento direto (sem fases)"""
-    logger.info(f"🧠 Dispositivo de treino: {cfg.device}")
-
-    modelo = YOLO(cfg.model)
-    resultados = modelo.train(
-        data=str(cfg.data),
-        epochs=cfg.epochs,
-        batch=cfg.batch,
-        imgsz=cfg.imgsz,
-        project=str(cfg.project),
-        name=cfg.name,
-        device=cfg.device,
-        optimizer=cfg.optimizer,
-        workers=cfg.workers,
-        patience=cfg.patience,
-        exist_ok=False,
-        cos_lr=True,
-        warmup_epochs=5,
-        close_mosaic=10,
-        multi_scale=True,
-        cache=True,
-        amp=True,
-        lr0=0.01,
-        weight_decay=0.0005,
-        save_period=10,
-    )
-
-    # Salvar modelo
     save_dir = Path(resultados.save_dir)
-    caminho_modelo = save_dir / "weights" / "best.pt"
-
-    if caminho_modelo.exists():
-        shutil.copy(caminho_modelo, cfg.output_model)
-        logger.info(f"✅ Modelo salvo: {cfg.output_model}")
+    final_model = save_dir / "weights" / "best.pt"
+    if final_model.exists():
+        os.makedirs(os.path.dirname(args.output_model), exist_ok=True)
+        shutil.copy(final_model, args.output_model)
+        logger.info(f"✅ Modelo salvo em: {args.output_model}")
 
         # Copiar também o último modelo
         last_model = save_dir / "weights" / "last.pt"
         if last_model.exists():
-            shutil.copy(last_model, cfg.output_model.parent / "last.pt")
+            shutil.copy(last_model, os.path.dirname(args.output_model) / "last.pt")
     else:
-        logger.error(f"❌ Arquivo não encontrado: {caminho_modelo}")
+        logger.error("❌ Modelo final não encontrado!")
 
 
 # ---------------- Função Principal ----------------
@@ -435,57 +392,16 @@ def main():
     try:
         args = configurar_argumentos()
 
-        # Verificar e preparar caminhos
-        yaml_path = os.path.abspath(args.yaml_path)
-        if not os.path.exists(yaml_path):
-            raise FileNotFoundError(f"Arquivo de dataset não encontrado: {yaml_path}")
-
-        # Determinar dispositivo
-        device = determinar_dispositivo(args.device)
-        workers = max(2, min(8, (os.cpu_count() or 8) - 1))
-
-        # Configuração de treinamento
-        cfg = TrainConfig(
-            model=args.model,
-            data=Path(yaml_path),
-            epochs=args.epochs,
-            batch=args.batch,
-            imgsz=args.imgsz,
-            project=Path(args.project),
-            name=args.name,
-            device=device,
-            optimizer="AdamW",
-            workers=workers,
-            patience=args.patience,
-            output_model=Path(args.output_model),
-            aug_factor=args.aug_factor,
-            balance_classes=args.balance_classes,
-            phase_training=args.phase_training,
-            phase1_epochs=args.phase1_epochs,
-        )
-
         # Limpar diretórios anteriores se solicitado
         if args.reset:
-            limpar_diretorios_anteriores(str(cfg.project / cfg.name))
+            project_dir = os.path.join(args.project, args.name)
+            limpar_diretorios_anteriores(project_dir)
 
         # Preparar diretório de saída
-        preparar_diretorio_saida(str(cfg.output_model))
-
-        # Verificar estrutura do dataset
-        verificar_estrutura(str(cfg.data))
-
-        # Augmentação de dataset se solicitado
-        if args.augmentar_dataset:
-            if args.balance_classes:
-                expandir_dataset_balanceado(str(cfg.data), args.aug_factor)
-            else:
-                expandir_dataset_automatico(str(cfg.data), args.aug_factor)
+        preparar_diretorio_saida(args.output_model)
 
         # Executar treinamento
-        if args.phase_training:
-            treinar_em_fases(cfg)
-        else:
-            treinamento_direto(cfg)
+        treinamento(args)
 
         logger.info("✅ Treinamento finalizado com sucesso!")
 
