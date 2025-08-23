@@ -1,221 +1,300 @@
-from __future__ import annotations
-
-import argparse
 import os
+import argparse
 import shutil
+from pathlib import Path
+import logging
 import sys
+import cv2
+import random
+import numpy as np
+from ultralytics import YOLO
+import albumentations as A
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-import time
-import json
-import random
+import torch
 
-import numpy as np
+# ---------------- Logging ----------------
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
-# Evita warning de OpenMP em algumas distros
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("ULTRALYTICS_AGGREGATE", "1")
+# ---------------- Config padrão ----------------
+DEFAULT_CONFIG = {
+    "model": "yolov8n.pt",
+    "epochs": 50,
+    "imgsz": 640,
+    "batch": 16,
+    "project": "runs/train",
+    "name": "detector_sacola",
+    "yaml_path": "dataset_sacolas/sacolas.yaml",
+    "patience": 15,
+    "output_model": "modelos/detector_sacola.pt",
+    "aug_factor": 5,  # número padrão de augmentations por imagem
+    "balance_classes": True,  # ativa balanceamento de classes
+}
 
-try:
-    from ultralytics import YOLO
-except Exception as e:
-    print(
-        "❌ Falha ao importar ultralytics. Instale com: pip install ultralytics",
-        file=sys.stderr,
-    )
-    raise
+from dataclasses import dataclass
+from pathlib import Path
 
 
-# ---------------------------- Config --------------------------------- #
 @dataclass
-class TrainCLI:
-    data: Path = Path("dataset_sacolas/data.yaml")
-    project: Path = Path("runs/train")
-    name: str = "detector_sacola"
-    model: str = "yolov8s.pt"  # backbone desejado
-    device: str = "cpu"  # força CPU
-    epochs: int = 320  # longo para CPU
-    batch: int = 4  # 4 cabe bem em 32GB e acelera
-    imgsz: int = 736  # múltiplo de 32 (evita resize implícito)
-    workers: int = 8  # threads de dataloader
-    patience: int = 30  # não parar cedo
-    seed: int = 42
-    output_model: Path = Path("runs/train/detector_sacola/weights/best.pt")
-    resume: bool = False  # retomar de ultimo treino na pasta
-    save_period: int = 25  # checkpoint a cada N épocas
+class TrainConfig:
+    model: str
+    data: Path
+    epochs: int
+    batch: int
+    imgsz: int
+    project: Path
+    name: str
+    device: str
+    optimizer: str
+    workers: int
+    patience: int
+    output_model: Path
 
 
-# ---------------------------- Utils ---------------------------------- #
-def set_seed(seed: int) -> None:
-    random.seed(seed)
-    np.random.seed(seed)
+# ---------------- Funções utilitárias ----------------
+def verificar_estrutura(yaml_path: str):
+    base_path = os.path.dirname(yaml_path)
+    required_dirs = ["images/train", "labels/train", "images/val", "labels/val"]
 
+    missing = []  # diretórios que não existem
+    empty = []  # diretórios vazios
 
-def ensure_paths(cfg: TrainCLI) -> None:
-    cfg.project.mkdir(parents=True, exist_ok=True)
-    out_dir = cfg.project / cfg.name
-    out_dir.mkdir(parents=True, exist_ok=True)
-    # garante que o caminho de saída existe
-    dest = Path(cfg.output_model).parent
-    dest.mkdir(parents=True, exist_ok=True)
+    for dir_path in required_dirs:
+        full_path = os.path.join(base_path, dir_path)
+        if not os.path.exists(full_path):
+            missing.append(full_path)
+        elif not os.listdir(full_path):
+            empty.append(full_path)
 
-
-def copy_best(src_dir: Path, dst_path: Path) -> None:
-    best_src = src_dir / "weights" / "best.pt"
-    last_src = src_dir / "weights" / "last.pt"
-    src = best_src if best_src.exists() else last_src
-    if src.exists():
-        shutil.copy2(src, dst_path)
-        print(f"📦 Copiado modelo final para: {dst_path}")
+    if missing or empty:
+        msgs = []
+        if missing:
+            msgs.append(f"Diretórios não encontrados: {', '.join(missing)}")
+        if empty:
+            msgs.append(f"Diretórios vazios: {', '.join(empty)}")
+        raise ValueError("\n".join(msgs))
     else:
-        print("⚠️ Não encontrei weights/best.pt nem weights/last.pt para copiar.")
+        logger.info(f"✅ Estrutura de dados válida em: {base_path}")
 
 
-# ---------------------------- Treino --------------------------------- #
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Treino YOLOv8s otimizado para CPU")
-    parser.add_argument("--data", type=str, default=str(TrainCLI.data))
-    parser.add_argument("--project", type=str, default=str(TrainCLI.project))
-    parser.add_argument("--name", type=str, default=TrainCLI.name)
-    parser.add_argument("--model", type=str, default=TrainCLI.model)
-    parser.add_argument("--device", type=str, default=TrainCLI.device)
-    parser.add_argument("--epochs", type=int, default=TrainCLI.epochs)
-    parser.add_argument("--batch", type=int, default=TrainCLI.batch)
-    parser.add_argument("--imgsz", type=int, default=TrainCLI.imgsz)
-    parser.add_argument("--workers", type=int, default=TrainCLI.workers)
-    parser.add_argument("--patience", type=int, default=TrainCLI.patience)
-    parser.add_argument("--seed", type=int, default=TrainCLI.seed)
-    parser.add_argument("--resume", action="store_true", default=TrainCLI.resume)
-    parser.add_argument("--save-period", type=int, default=TrainCLI.save_period)
-    parser.add_argument("--output-model", type=str, default=str(TrainCLI.output_model))
-    args = parser.parse_args()
+def configurar_argumentos():
+    parser = argparse.ArgumentParser(description="Treinador YOLOv8 para Sacolas")
+    for k, v in DEFAULT_CONFIG.items():
+        parser.add_argument(f"--{k}", type=type(v), default=v)
+    parser.add_argument(
+        "--reset", action="store_true", help="Limpar treinamentos anteriores"
+    )
+    parser.add_argument(
+        "--augmentar_dataset", action="store_true", help="Aplicar data augmentation"
+    )
+    parser.add_argument(
+        "--resume", action="store_true", help="Retomar treino de modelo existente"
+    )
+    return parser.parse_args()
 
-    cfg = TrainCLI(
-        data=Path(args.data),
-        project=Path(args.project),
-        name=args.name,
-        model=args.model,
-        device=args.device,
-        epochs=args.epochs,
-        batch=args.batch,
-        imgsz=args.imgsz,
-        workers=args.workers,
-        patience=args.patience,
-        seed=args.seed,
-        output_model=Path(args.output_model),
-        resume=args.resume,
-        save_period=args.save_period,
+
+def limpar_diretorios_anteriores(project_dir):
+    if os.path.exists(project_dir):
+        shutil.rmtree(project_dir, ignore_errors=True)
+        logger.info("⚠️ Diretórios de treino anteriores removidos")
+
+
+def preparar_diretorio_saida(output_path):
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    logger.info(f"✅ Diretório de saída preparado: {os.path.dirname(output_path)}")
+
+
+# ---------------- Augmentation pipeline ----------------
+def criar_augmenter():
+    return A.Compose(
+        [
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.2),
+            A.ShiftScaleRotate(
+                shift_limit=0.05, scale_limit=0.1, rotate_limit=15, p=0.5
+            ),
+            A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+            A.HueSaturationValue(
+                hue_shift_limit=10, sat_shift_limit=15, val_shift_limit=10, p=0.3
+            ),
+            A.MotionBlur(blur_limit=3, p=0.2),
+            A.GaussNoise(var_limit=(10.0, 50.0), p=0.2),
+        ],
+        bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"]),
     )
 
-    set_seed(cfg.seed)
-    ensure_paths(cfg)
 
-    # Sanidade básica
-    if not cfg.data.exists():
-        print(f"❌ data.yaml não encontrado: {cfg.data}")
-        sys.exit(1)
+def aplicar_augmentations(im_path, lbl_path, out_img_dir, out_lbl_dir, augmenter, idx):
+    try:
+        image = cv2.imread(im_path)
+        if image is None:
+            raise ValueError(f"Não foi possível ler a imagem: {im_path}")
+        if not os.path.exists(lbl_path):
+            logger.warning(f"Label não encontrado: {lbl_path}")
+            return 0
 
-    print("\n================= CONFIG =================")
-    print(
-        json.dumps(
-            {
-                "model": cfg.model,
-                "data": str(cfg.data),
-                "device": cfg.device,
-                "epochs": cfg.epochs,
-                "batch": cfg.batch,
-                "imgsz": cfg.imgsz,
-                "workers": cfg.workers,
-                "patience": cfg.patience,
-                "project/name": f"{cfg.project}/{cfg.name}",
-                "resume": cfg.resume,
-            },
-            indent=2,
-        )
-    )
-    print("==========================================\n")
+        with open(lbl_path, "r") as f:
+            lines = [l.strip().split() for l in f if l.strip()]
+            classes = [int(l[0]) for l in lines]
+            bboxes = [list(map(float, l[1:])) for l in lines]
 
-    # Carrega modelo base
-    model = YOLO(cfg.model)
+        transformed = augmenter(image=image, bboxes=bboxes, class_labels=classes)
 
-    # Hiperparâmetros e overrides pensados para CPU
-    overrides = {
-        # básico
-        "data": str(cfg.data),
-        "epochs": cfg.epochs,
-        "batch": cfg.batch,
-        "imgsz": cfg.imgsz,
-        "device": cfg.device,
-        "project": str(cfg.project),
-        "name": cfg.name,
-        "workers": cfg.workers,
-        "verbose": True,
-        "save": True,
-        "save_period": cfg.save_period,
-        "exist_ok": True,
-        "seed": cfg.seed,
-        "patience": cfg.patience,  # early stopping mais paciente
-        "resume": cfg.resume,
-        # desempenho CPU
-        "cache": "ram",  # cache em RAM (mais rápido na CPU)
-        "pin_memory": True,
-        "persist": True,
-        "pretrained": True,  # mantém head randômica mas backbone com pesos base
-        # otimizador + scheduler estáveis em treinos longos
-        "optimizer": "AdamW",
-        "cos_lr": True,
-        "lr0": 0.001,  # lr inicial menor (estabilidade)
-        "lrf": 0.01,  # lr final (cosine)
-        "momentum": 0.9,  # usado por algumas políticas internas
-        "weight_decay": 0.0005,
-        # augmentações fortes para reduzir FNs
-        "degrees": 5.0,
-        "translate": 0.10,
-        "scale": 0.75,  # permite downscale/upscale
-        "shear": 2.0,
-        "fliplr": 0.5,
-        "flipud": 0.1,
-        "hsv_h": 0.015,
-        "hsv_s": 0.7,
-        "hsv_v": 0.4,
-        # Técnicas de mistura – ajudam em datasets pequenos
-        "mosaic": 1.0,  # habilitado (probabilidade)
-        "mixup": 0.15,
-        "copy_paste": 0.1,
-        "close_mosaic": 10,  # desliga nas últimas N épocas para refinar
-        # validação e artefatos
-        "val": True,
-        "plots": True,
-        "save_json": False,  # COCO json (habilite se precisar)
-    }
-
-    t0 = time.time()
-    print("🚀 Iniciando treino...")
-    results = model.train(**overrides)
-    dur = time.time() - t0
-    print(f"✅ Treino finalizado em {dur/3600:.2f} h")
-
-    # Avaliação final (val) — garante métricas atualizadas no final
-    print("📊 Rodando avaliação final...")
-    model.val(
-        data=str(cfg.data),
-        imgsz=cfg.imgsz,
-        batch=cfg.batch,
-        device=cfg.device,
-        plots=True,
-    )
-
-    # Copia best.pt para destino pedido
-    exp_dir = (
-        Path(results.save_dir)
-        if hasattr(results, "save_dir")
-        else (cfg.project / cfg.name)
-    )
-    copy_best(exp_dir, cfg.output_model)
-
-    print("\n🎉 Pronto! Modelos e artefatos em:", exp_dir)
-    print("   Melhor peso em:", cfg.output_model)
+        out_img = os.path.join(out_img_dir, f"aug_{idx}_{os.path.basename(im_path)}")
+        out_lbl = os.path.join(out_lbl_dir, f"aug_{idx}_{os.path.basename(lbl_path)}")
+        cv2.imwrite(out_img, transformed["image"])
+        with open(out_lbl, "w") as f:
+            for cls, bbox in zip(transformed["class_labels"], transformed["bboxes"]):
+                f.write(f"{cls} {' '.join(f'{x:.6f}' for x in bbox)}\n")
+        return 1
+    except Exception as e:
+        logger.error(f"Erro augment {im_path}: {e}")
+        return 0
 
 
+# ---------------- Dataset balanceado ----------------
+
+
+def coletar_imagens_por_classe(img_dir, lbl_dir):
+    """Retorna um dicionário {classe: [(imagem_path, label_path), ...]}"""
+    class_imgs = defaultdict(list)
+    for f in os.listdir(img_dir):
+        if not f.lower().endswith((".jpg", ".png")):
+            continue
+        lbl_file = os.path.join(lbl_dir, f.rsplit(".", 1)[0] + ".txt")
+        if not os.path.exists(lbl_file):
+            continue
+        with open(lbl_file, "r") as lf:
+            classes = [int(l.strip().split()[0]) for l in lf if l.strip()]
+        for cls in classes:
+            class_imgs[cls].append((os.path.join(img_dir, f), lbl_file))
+    return class_imgs
+
+
+def expandir_dataset_balanceado(yaml_path, aug_factor=5):
+    """Expande o dataset balanceando classes com menos imagens"""
+    base = os.path.dirname(yaml_path)
+    img_dir = os.path.join(base, "images/train")
+    lbl_dir = os.path.join(base, "labels/train")
+    augmenter = criar_augmenter()
+    total_aug = 0
+
+    class_imgs = coletar_imagens_por_classe(img_dir, lbl_dir)
+    if not class_imgs:
+        raise ValueError("Nenhuma imagem com label encontrada para augmentation")
+
+    max_count = max(len(v) for v in class_imgs.values())  # classe com mais imagens
+
+    for cls, imgs in class_imgs.items():
+        needed = max_count - len(imgs)
+        imgs_to_aug = imgs * ((needed // len(imgs)) + 1)
+        for i, (img_path, lbl_path) in enumerate(imgs_to_aug[:needed]):
+            for n in range(aug_factor):
+                total_aug += aplicar_augmentations(
+                    img_path, lbl_path, img_dir, lbl_dir, augmenter, f"{cls}_{i}_{n}"
+                )
+
+    logger.info(f"✅ Dataset expandido balanceado com {total_aug} novas imagens")
+
+
+def expandir_dataset_automatico(yaml_path, aug_factor=5):
+    base = os.path.dirname(yaml_path)
+    img_dir = os.path.join(base, "images/train")
+    lbl_dir = os.path.join(base, "labels/train")
+    augmenter = criar_augmenter()
+    total_aug = 0
+
+    imagens = [f for f in os.listdir(img_dir) if f.lower().endswith((".jpg", ".png"))]
+    if not imagens:
+        raise ValueError("Nenhuma imagem encontrada para augmentation")
+
+    for idx, img_file in enumerate(imagens):
+        img_path = os.path.join(img_dir, img_file)
+        lbl_path = os.path.join(lbl_dir, img_file.rsplit(".", 1)[0] + ".txt")
+        if not os.path.exists(lbl_path):
+            logger.warning(f"Label não encontrado: {lbl_path}")
+            continue
+        for n in range(aug_factor):
+            total_aug += aplicar_augmentations(
+                img_path, lbl_path, img_dir, lbl_dir, augmenter, f"{idx}_{n}"
+            )
+
+    logger.info(f"✅ Dataset expandido com {total_aug} novas imagens")
+
+
+# ---------------- Treinamento ----------------
+def treinar_modelo(cfg: TrainConfig):
+    try:
+        logger.info(f"✅ Estrutura de dados válida em: {cfg.data}")
+        logger.info(f"✅ Diretório de saída preparado: {cfg.output_model.parent}")
+
+        modelo = YOLO(cfg.model)
+
+        overrides = {
+            "data": str(cfg.data),
+            "epochs": cfg.epochs,
+            "batch": cfg.batch,
+            "imgsz": cfg.imgsz,
+            "project": cfg.project,
+            "name": cfg.name,
+            "device": cfg.device,
+            "optimizer": cfg.optimizer,
+            "workers": cfg.workers,
+            "patience": cfg.patience,
+            "exist_ok": False,  # continua criando detector_sacola2,3…
+        }
+
+        resultados = modelo.train(**overrides)
+
+        # ✅ pega automaticamente o caminho real salvo pelo YOLO
+        save_dir = Path(resultados.save_dir)
+        caminho_modelo = save_dir / "weights" / "best.pt"
+
+        if caminho_modelo.exists():
+            shutil.copy(caminho_modelo, cfg.output_model)
+            logger.info(f"✅ Modelo salvo: {cfg.output_model}")
+        else:
+            logger.error(f"❌ Arquivo não encontrado: {caminho_modelo}")
+
+    except Exception as e:
+        logger.error(f"Erro treinamento: {e}")
+        logger.error(f"Falha treinamento: {e}")
+
+
+# ---------------- Main ----------------
 if __name__ == "__main__":
-    main()
+    try:
+        cfg_args = configurar_argumentos()
+
+        # força caminho absoluto para o YAML
+        yaml_path = os.path.abspath(os.path.join("dataset_sacolas", "sacolas.yaml"))
+        if not os.path.exists(yaml_path):
+            raise FileNotFoundError(f"Arquivo de dataset não encontrado: {yaml_path}")
+
+        # montar objeto TrainConfig corretamente
+        cfg = TrainConfig(
+            model=cfg_args.model,
+            data=Path(yaml_path),
+            epochs=cfg_args.epochs,
+            batch=cfg_args.batch,
+            imgsz=cfg_args.imgsz,
+            project=Path(cfg_args.project),
+            name=cfg_args.name,
+            device="cpu",
+            optimizer="AdamW",
+            workers=8,
+            patience=cfg_args.patience,
+            output_model=Path(cfg_args.output_model),
+        )
+
+        # chama o treino
+        treinar_modelo(cfg)
+        logger.info("✅ Treinamento finalizado com sucesso!")
+
+    except Exception as e:
+        logger.error(f"Falha treinamento: {e}")
+        sys.exit(1)

@@ -24,7 +24,7 @@ class BagDetector:
         "sujeira": (0, 255, 255),  # Amarelo
     }
 
-    def __init__(self, model_path: Union[str, Path], confidence_threshold: float = 0.2):
+    def __init__(self, model_path: Union[str, Path], confidence_threshold: float = 0.5):
         """
         Inicializa o detector com modelo personalizado.
 
