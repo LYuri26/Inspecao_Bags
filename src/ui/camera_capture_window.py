@@ -185,7 +185,7 @@ class CameraCaptureWindow(QWidget):
             self.output_dir,
             self.num_cameras,
             num_photos=100,
-            interval=5,
+            interval=90,
         )
         self.capture_thread.update_progress.connect(self.update_progress)
         self.capture_thread.finished_capture.connect(self.on_capture_finished)

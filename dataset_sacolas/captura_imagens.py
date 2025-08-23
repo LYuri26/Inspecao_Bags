@@ -1,32 +1,78 @@
 import cv2
 import os
-from pathlib import Path
+from datetime import datetime
 
-# Caminhos
-PASTA_ENTRADA = Path(
-    "/home/lenon/Documentos/GitHub/Inspecao_Bags/dataset_sacolas/baixadas"
-)
-PASTA_SAIDA = Path(
-    "/home/lenon/Documentos/GitHub/Inspecao_Bags/dataset_sacolas/images/train"
-)
-RESOLUCAO = (640, 480)
-EXTENSAO = ".jpg"
+# Pasta onde salvar as imagens
+OUTPUT_DIR = "dataset/images"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Cria a pasta de saída se não existir
-PASTA_SAIDA.mkdir(parents=True, exist_ok=True)
+# Tamanho para YOLOv8s
+IMG_SIZE = 896
 
-# Percorre imagens na pasta de entrada
-for idx, arquivo in enumerate(PASTA_ENTRADA.glob("*")):
-    if not arquivo.suffix.lower() in [".jpg", ".jpeg", ".png", ".bmp"]:
-        continue
 
-    img = cv2.imread(str(arquivo))
-    if img is None:
-        print(f"[ERRO] Falha ao ler {arquivo.name}")
-        continue
+def letterbox_image(image, size=IMG_SIZE):
+    """
+    Redimensiona a imagem para quadrado (size x size) usando letterbox.
+    Mantém proporção sem distorcer, preenchendo com preto.
+    """
+    h, w = image.shape[:2]
+    scale = min(size / w, size / h)
+    nw, nh = int(w * scale), int(h * scale)
 
-    img_resized = cv2.resize(img, RESOLUCAO)
-    nome_saida = f"img_{idx:04d}{EXTENSAO}"
-    caminho_saida = PASTA_SAIDA / nome_saida
-    cv2.imwrite(str(caminho_saida), img_resized)
-    print(f"[SALVO] {caminho_saida}")
+    # Redimensiona mantendo proporção
+    resized = cv2.resize(image, (nw, nh), interpolation=cv2.INTER_LINEAR)
+
+    # Cria fundo preto
+    new_image = 255 * np.ones(
+        (size, size, 3), dtype=np.uint8
+    )  # fundo branco (pode trocar para 0 para preto)
+    top = (size - nh) // 2
+    left = (size - nw) // 2
+
+    # Coloca a imagem no centro
+    new_image[top : top + nh, left : left + nw] = resized
+    return new_image
+
+
+def capture_images(camera_index=0):
+    cap = cv2.VideoCapture(camera_index)
+
+    if not cap.isOpened():
+        print("Erro: Não foi possível acessar a câmera.")
+        return
+
+    count = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Erro ao capturar frame.")
+            break
+
+        # Redimensiona com letterbox
+        frame_resized = letterbox_image(frame, IMG_SIZE)
+
+        # Nome do arquivo
+        filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".jpg"
+        filepath = os.path.join(OUTPUT_DIR, filename)
+
+        # Salva a imagem
+        cv2.imwrite(filepath, frame_resized)
+        print(f"✅ Imagem salva: {filepath}")
+
+        count += 1
+
+        # Mostra a imagem capturada
+        cv2.imshow("Captura", frame_resized)
+
+        # Captura a cada 90 segundos (1 min e meio)
+        if cv2.waitKey(90000) & 0xFF == ord("q"):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    import numpy as np
+
+    capture_images()
