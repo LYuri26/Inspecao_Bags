@@ -51,26 +51,41 @@ def instalar_dependencias():
         "pip.exe" if platform.system() == "Windows" else "pip"
     )
 
-    # Verifica GPU apenas se já houver torch instalado
-    has_cuda = False
+    # Verifica se há GPU NVIDIA disponível (sem depender do PyTorch)
+    has_nvidia_gpu = False
     try:
-        import torch
+        # Tenta detectar GPU NVIDIA através do sistema
+        if platform.system() == "Windows":
+            # No Windows, verifica se há dispositivos NVIDIA no gerenciador de dispositivos
+            import winreg
 
-        has_cuda = torch.cuda.is_available()
-    except ImportError:
-        logger.info("ℹ️ PyTorch não instalado ainda, assumindo CPU temporariamente.")
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r"SYSTEM\CurrentControlSet\Services\nvlddmkm",
+                )
+                winreg.CloseKey(key)
+                has_nvidia_gpu = True
+            except:
+                has_nvidia_gpu = False
+        else:
+            # No Linux, verifica se o comando nvidia-smi existe
+            result = subprocess.run(
+                ["which", "nvidia-smi"], capture_output=True, text=True
+            )
+            has_nvidia_gpu = result.returncode == 0
+    except:
+        has_nvidia_gpu = False
 
-    # Escolhe requirements
-    if has_cuda and REQ_GPU.exists():
+    # Escolhe requirements baseado na detecção de GPU NVIDIA
+    if has_nvidia_gpu and REQ_GPU.exists():
         req_file = REQ_GPU
-        logger.info("✅ CUDA detectada → Instalando pacotes GPU")
+        logger.info("✅ GPU NVIDIA detectada → Instalando pacotes GPU")
     elif REQ_CPU.exists():
         req_file = REQ_CPU
-        logger.warning("⚠️ CUDA não encontrada → Instalando pacotes CPU")
+        logger.warning("⚠️ GPU NVIDIA não detectada → Instalando pacotes CPU")
     else:
-        logger.error(
-            "❌ Nenhum requirements-cpu.txt ou requirements-gpu.txt encontrado"
-        )
+        logger.error("❌ Nenhum arquivo de requirements encontrado")
         return False
 
     # Instala dependências
