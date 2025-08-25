@@ -15,11 +15,12 @@ def main():
 
     if has_cuda:
         print("✅ Instalando pacotes GPU (CUDA 12.1)...")
-        run(f"{sys.executable} -m pip install -r requirements-gpu.txt")
+        # run(f"{sys.executable} -m pip install -r requirements-gpu.txt")
+        run(f"{sys.executable} -m pip install -r requirements-cpu.txt")
+
     else:
         print("⚠️ CUDA não encontrada. Instalando versão CPU...")
-        # run(f"{sys.executable} -m pip install -r requirements-cpu.txt")
-        run(f"{sys.executable} -m pip install -r requirements-gpu.txt")
+        run(f"{sys.executable} -m pip install -r requirements-cpu.txt")
 
 
 if __name__ == "__main__":
