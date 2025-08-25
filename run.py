@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 import os
-
-os.environ["CUDA_MODULE_LOADING"] = "LAZY"
-
 import sys
 import platform
 import subprocess
@@ -21,6 +18,10 @@ VENV_DIR = Path(".venv")
 REQ_CPU = Path("requirements-cpu.txt")
 REQ_GPU = Path("requirements-gpu.txt")
 MAIN_SCRIPT = Path("src") / "main.py"
+
+# ================= CPU PROVISÓRIO =================
+# Forçar CPU temporariamente, descomente para voltar a GPU
+# os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 # ================= FUNÇÕES =================
@@ -62,28 +63,12 @@ def instalar_dependencias():
         logger.info("✅ pip atualizado com sucesso")
     except subprocess.CalledProcessError as e:
         logger.warning(f"⚠️ Falha ao atualizar pip: {e}")
-    # Verifica se há GPU NVIDIA disponível
-    has_nvidia_gpu = False
-    try:
-        if platform.system() == "Windows":
-            import winreg
 
-            try:
-                key = winreg.OpenKey(
-                    winreg.HKEY_LOCAL_MACHINE,
-                    r"SYSTEM\CurrentControlSet\Services\nvlddmkm",
-                )
-                winreg.CloseKey(key)
-                has_nvidia_gpu = True
-            except:
-                has_nvidia_gpu = False
-        else:
-            result = subprocess.run(
-                ["which", "nvidia-smi"], capture_output=True, text=True
-            )
-            has_nvidia_gpu = result.returncode == 0
-    except:
-        has_nvidia_gpu = False
+    # ================= CPU PROVISÓRIO =================
+    # Forçar instalação CPU mesmo se GPU estiver presente
+    # has_nvidia_gpu = False
+    # Se quiser voltar GPU, descomente abaixo
+    has_nvidia_gpu = False
 
     # Escolhe requirements
     if has_nvidia_gpu and REQ_GPU.exists():
@@ -117,6 +102,8 @@ def verificar_gpu():
                 (
                     "import torch; "
                     "print(f'🔥 Torch versão: {torch.__version__}'); "
+                    # ================= CPU PROVISÓRIO =================
+                    "print('⚠️ Ignorando GPU temporariamente, rodando apenas CPU'); "
                     "print(f'CUDA disponível: {torch.cuda.is_available()}'); "
                     "print(f'GPUs detectadas: {torch.cuda.device_count()}')"
                 ),
@@ -133,7 +120,12 @@ def iniciar_main():
     if MAIN_SCRIPT.exists():
         logger.info(f"🚀 Iniciando {MAIN_SCRIPT} ...")
         try:
-            subprocess.run([str(python_path), "-m", "src.main"], check=True)
+            # ================= CPU PROVISÓRIO =================
+            subprocess.run(
+                [str(python_path), "-m", "src.main"],
+                check=True,
+                env={**os.environ, "CUDA_VISIBLE_DEVICES": ""},
+            )
         except subprocess.CalledProcessError as e:
             logger.error(f"❌ Erro ao rodar main: {e}")
     else:
