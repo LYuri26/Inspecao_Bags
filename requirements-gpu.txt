@@ -1,10 +1,10 @@
 # ==========================
-# PyTorch + CUDA 12.8 (nightly)
+# PyTorch (Nightly + CUDA 12.8)
 # ==========================
 torch==2.9.0.dev20250824+cu128
 torchvision==0.24.0.dev20250824+cu128
 torchaudio==2.8.0.dev20250824+cu128
---index-url https://download.pytorch.org/whl/nightly/cu128
+--extra-index-url https://download.pytorch.org/whl/nightly/cu128
 
 # ==========================
 # YOLO e visão computacional
