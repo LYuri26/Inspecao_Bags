@@ -9,7 +9,8 @@ torchaudio==2.8.0.dev20250824+cu128
 # ==========================
 # YOLO e visão computacional
 # ==========================
-ultralytics>=8.6.0
+# Instala a versão mais recente compatível diretamente do GitHub
+git+https://github.com/ultralytics/ultralytics.git
 opencv-python-headless==4.11.0.86
 albumentations==1.4.0
 imgaug==0.4.0
