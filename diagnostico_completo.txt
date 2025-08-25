@@ -1,0 +1,71 @@
+======================================================================
+DIAGNÓSTICO COMPLETO - GPU, PyTorch, CUDA, YOLOv8
+Gerado em: 2025-08-24 21:34:18
+======================================================================
+
+=== SISTEMA OPERACIONAL ===
+Sistema: Windows
+Versão: 10.0.26100
+Arquitetura: 64bit
+Processador: Intel64 Family 6 Model 198 Stepping 2, GenuineIntel
+Python: 3.10.0
+CPUs Físicos: 20
+CPUs Lógicos: 20
+RAM Total: 31.72 GB
+Timestamp: 2025-08-24 21:34:18
+
+=== GPU (via nvidia-smi) ===
+Sun Aug 24 21:34:18 2025       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 581.08                 Driver Version: 581.08         CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                  Driver-Model | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 5060 Ti   WDDM  |   00000000:02:00.0  On |                  N/A |
+|  0%   45C    P8              8W /  180W |     342MiB /   8151MiB |     25%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A             564    C+G   ...0.3405.102\msedgewebview2.exe      N/A      |
+|    0   N/A  N/A            8240    C+G   C:\Windows\explorer.exe               N/A      |
+|    0   N/A  N/A            8652    C+G   ...em32\ApplicationFrameHost.exe      N/A      |
+|    0   N/A  N/A           25388    C+G   ...p\app-3.5.2\GitHubDesktop.exe      N/A      |
++-----------------------------------------------------------------------------------------+
+Driver NVIDIA não encontrado no registro
+
+=== CUDA (sistema) ===
+Erro ao executar 'nvcc --version':
+'nvcc' nÆo ‚ reconhecido como um comando interno
+ou externo, um programa oper vel ou um arquivo em lotes.
+
+NVCC não encontrado
+Variáveis de ambiente CUDA não configuradas
+
+=== PyTorch ===
+torch.__version__: 2.8.0+cpu
+CUDA disponível: False
+Nenhuma GPU CUDA detectada pelo PyTorch
+
+=== Pacotes relevantes instalados ===
+albumentations==1.4.0
+nvidia-ml-py3==7.352.0
+opencv-python-headless==4.9.0.80
+opencv-python==4.11.0.86
+torch==2.8.0
+torchaudio==2.8.0
+torchvision==0.23.0
+ultralytics==8.1.0
+⚠️ Testes de performance skipped - CUDA não disponível
+
+=== RECOMENDAÇÕES ===
+⚠️ Você está usando PyTorch apenas com CPU.
+👉 Para usar GPU NVIDIA, reinstale o PyTorch:
+   pip uninstall torch torchvision torchaudio -y
+   pip install torch==2.2.1 torchvision==0.17.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121

@@ -1,0 +1,31 @@
+{
+  "system_info": {
+    "Sistema": "Windows",
+    "Versão": "10.0.26100",
+    "Arquitetura": "64bit",
+    "Processador": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel",
+    "Python": "3.10.0",
+    "CPUs Físicos": 20,
+    "CPUs Lógicos": 20,
+    "RAM Total": "31.72 GB",
+    "Timestamp": "2025-08-24 21:34:18"
+  },
+  "nvidia_drivers": {},
+  "cuda_installation": {},
+  "pytorch_gpu": {
+    "version": "2.8.0+cpu",
+    "cuda_available": false,
+    "cuda_version": "N/A",
+    "cudnn_version": "N/A"
+  },
+  "packages": [
+    "albumentations==1.4.0",
+    "nvidia-ml-py3==7.352.0",
+    "opencv-python-headless==4.9.0.80",
+    "opencv-python==4.11.0.86",
+    "torch==2.8.0",
+    "torchaudio==2.8.0",
+    "torchvision==0.23.0",
+    "ultralytics==8.1.0"
+  ]
+}

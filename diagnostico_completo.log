@@ -1,0 +1,36 @@
+2025-08-24 21:34:18,378 - INFO - === INFORMAÇÕES DO SISTEMA ===
+2025-08-24 21:34:18,378 - INFO - Sistema: Windows
+2025-08-24 21:34:18,378 - INFO - Versão: 10.0.26100
+2025-08-24 21:34:18,378 - INFO - Arquitetura: 64bit
+2025-08-24 21:34:18,378 - INFO - Processador: Intel64 Family 6 Model 198 Stepping 2, GenuineIntel
+2025-08-24 21:34:18,378 - INFO - Python: 3.10.0
+2025-08-24 21:34:18,378 - INFO - CPUs Físicos: 20
+2025-08-24 21:34:18,378 - INFO - CPUs Lógicos: 20
+2025-08-24 21:34:18,379 - INFO - RAM Total: 31.72 GB
+2025-08-24 21:34:18,379 - INFO - Timestamp: 2025-08-24 21:34:18
+2025-08-24 21:34:18,379 - INFO - 
+=== DRIVERS NVIDIA ===
+2025-08-24 21:34:18,662 - WARNING - Driver NVIDIA não encontrado no registro
+2025-08-24 21:34:18,662 - INFO - 
+=== INSTALAÇÃO CUDA ===
+2025-08-24 21:34:18,672 - WARNING - NVCC não encontrado
+2025-08-24 21:34:18,672 - WARNING - Variáveis de ambiente CUDA não configuradas
+2025-08-24 21:34:18,672 - INFO - 
+=== PyTorch & GPU ===
+2025-08-24 21:34:18,672 - INFO - PyTorch Version: 2.8.0+cpu
+2025-08-24 21:34:18,673 - INFO - CUDA Available: False
+2025-08-24 21:34:18,673 - INFO - 
+=== PACOTES INSTALADOS ===
+2025-08-24 21:34:18,674 - INFO - albumentations==1.4.0
+2025-08-24 21:34:18,674 - INFO - nvidia-ml-py3==7.352.0
+2025-08-24 21:34:18,674 - INFO - opencv-python-headless==4.9.0.80
+2025-08-24 21:34:18,674 - INFO - opencv-python==4.11.0.86
+2025-08-24 21:34:18,674 - INFO - torch==2.8.0
+2025-08-24 21:34:18,674 - INFO - torchaudio==2.8.0
+2025-08-24 21:34:18,675 - INFO - torchvision==0.23.0
+2025-08-24 21:34:18,675 - INFO - ultralytics==8.1.0
+2025-08-24 21:34:18,675 - WARNING - Pulando testes de performance - CUDA não disponível
+2025-08-24 21:34:18,675 - INFO - 
+=== RECOMENDAÇÕES ===
+2025-08-24 21:34:18,677 - INFO -    pip uninstall torch torchvision torchaudio -y
+2025-08-24 21:34:18,677 - INFO -    pip install torch==2.2.1 torchvision==0.17.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121
