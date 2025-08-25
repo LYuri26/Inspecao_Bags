@@ -22,7 +22,10 @@ def check_nvidia():
     try:
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        name = pynvml.nvmlDeviceGetName(handle).decode("utf-8")
+        name = pynvml.nvmlDeviceGetName(handle)
+        # Decodifica bytes somente se necessário
+        if isinstance(name, bytes):
+            name = name.decode("utf-8")
         mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
         print(f"GPU detectada: {name}")
         print(f"Memória total: {round(mem_info.total / 1024**3, 2)} GB")
@@ -36,6 +39,11 @@ def test_yolo():
     print("=" * 50)
     print("🚀 Testando YOLOv8...")
     try:
+        # Permite explicitamente a classe DetectionModel (PyTorch 2.6+)
+        from ultralytics.nn.tasks import DetectionModel
+
+        torch.serialization.add_safe_globals([DetectionModel])
+
         model = YOLO("yolov8n.pt")  # modelo pequeno
         results = model.predict(
             source="https://ultralytics.com/images/bus.jpg",
