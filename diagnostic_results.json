@@ -1,0 +1,44 @@
+{
+  "system_sistema": "Windows",
+  "system_vers\u00e3o": "10.0.26100",
+  "system_arquitetura": [
+    "64bit",
+    "WindowsPE"
+  ],
+  "system_processador": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel",
+  "system_python": "3.10.0",
+  "system_cpus": 20,
+  "nvidia_drivers": {},
+  "cuda_installation": {},
+  "pytorch_gpu": {
+    "version": "2.2.1+cu121",
+    "cuda_available": true,
+    "cuda_version": "12.1",
+    "cudnn_version": 8801,
+    "device_count": 1,
+    "gpu_0_name": "NVIDIA GeForce RTX 5060 Ti",
+    "gpu_0_memory": "8.0 GB",
+    "gpu_0_capability": "12.0"
+  },
+  "gpu_performance": {
+    "transfer_cpu_to_gpu": 0.37581944465637207,
+    "matrix_operation": 0.4231235980987549,
+    "transfer_gpu_to_cpu": 0.5061435699462891
+  },
+  "yolov8_s": {
+    "load_time": 0.03299736976623535,
+    "error": "CUDA error: no kernel image is available for execution on the device\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1.\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+  },
+  "yolov8_m": {
+    "load_time": 5.3666157722473145,
+    "error": "CUDA error: no kernel image is available for execution on the device\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1.\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+  },
+  "yolov8_l": {
+    "load_time": 9.597525835037231,
+    "error": "CUDA error: no kernel image is available for execution on the device\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1.\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+  },
+  "yolov8_x": {
+    "load_time": 13.160008192062378,
+    "error": "CUDA error: no kernel image is available for execution on the device\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1.\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+  }
+}
