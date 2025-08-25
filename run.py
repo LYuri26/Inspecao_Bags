@@ -51,12 +51,17 @@ def instalar_dependencias():
         "pip.exe" if platform.system() == "Windows" else "pip"
     )
 
-    # Verifica se há GPU NVIDIA disponível (sem depender do PyTorch)
+    # Atualiza pip primeiro
+    try:
+        subprocess.run([str(pip_path), "install", "--upgrade", "pip"], check=True)
+        logger.info("✅ pip atualizado com sucesso")
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"⚠️ Falha ao atualizar pip: {e}")
+
+    # Verifica se há GPU NVIDIA disponível
     has_nvidia_gpu = False
     try:
-        # Tenta detectar GPU NVIDIA através do sistema
         if platform.system() == "Windows":
-            # No Windows, verifica se há dispositivos NVIDIA no gerenciador de dispositivos
             import winreg
 
             try:
@@ -69,7 +74,6 @@ def instalar_dependencias():
             except:
                 has_nvidia_gpu = False
         else:
-            # No Linux, verifica se o comando nvidia-smi existe
             result = subprocess.run(
                 ["which", "nvidia-smi"], capture_output=True, text=True
             )
@@ -77,7 +81,7 @@ def instalar_dependencias():
     except:
         has_nvidia_gpu = False
 
-    # Escolhe requirements baseado na detecção de GPU NVIDIA
+    # Escolhe requirements
     if has_nvidia_gpu and REQ_GPU.exists():
         req_file = REQ_GPU
         logger.info("✅ GPU NVIDIA detectada → Instalando pacotes GPU")
