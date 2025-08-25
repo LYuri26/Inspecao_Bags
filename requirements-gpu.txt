@@ -1,7 +1,7 @@
-# Versão nightly do PyTorch com suporte para Compute Capability 12.0 (RTX 5060 Ti)
-torch==2.3.0.dev20240824
-torchvision==0.18.0.dev20240824
-torchaudio==2.3.0.dev20240824
+# Versão nightly mais recente do PyTorch (use versões disponíveis)
+torch>=2.6.0
+torchvision>=0.17.0
+torchaudio>=2.6.0
 --extra-index-url https://download.pytorch.org/whl/nightly/cu121
 
 ultralytics==8.1.0
