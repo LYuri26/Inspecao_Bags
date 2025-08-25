@@ -1,2 +1,2 @@
-$env:CUDA_MODULE_LOADING="LAZY"
-python -m src.main
+python -m src.ui.views.camera_module.camera_view
+
