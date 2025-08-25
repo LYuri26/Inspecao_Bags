@@ -1,2 +1,0 @@
-python -m src.ui.views.camera_module.camera_view
-
