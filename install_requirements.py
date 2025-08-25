@@ -18,7 +18,8 @@ def main():
         run(f"{sys.executable} -m pip install -r requirements-gpu.txt")
     else:
         print("⚠️ CUDA não encontrada. Instalando versão CPU...")
-        run(f"{sys.executable} -m pip install -r requirements-cpu.txt")
+        # run(f"{sys.executable} -m pip install -r requirements-cpu.txt")
+        run(f"{sys.executable} -m pip install -r requirements-gpu.txt")
 
 
 if __name__ == "__main__":
