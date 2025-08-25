@@ -1,16 +1,16 @@
 # ==========================
-# PyTorch (fixado em 2.5.1 + cu121)
+# PyTorch + CUDA (ajustado para RTX 5060 Ti)
 # ==========================
-torch==2.5.1+cu121
-torchvision==0.20.1+cu121
-torchaudio==2.5.1+cu121
---extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.9.0.dev20250824+cu128
+torchvision==0.24.0.dev20250824+cu128
+torchaudio==2.5.1+cu121  # opcional, cuidado com incompatibilidade
+--index-url https://download.pytorch.org/whl/nightly/cu128
 
 # ==========================
 # YOLO e visão computacional
 # ==========================
 ultralytics==8.1.0
-opencv-python-headless==4.9.0.80
+opencv-python-headless==4.11.0.86
 albumentations==1.4.0
 imgaug==0.4.0
 numpy==1.26.4
@@ -22,7 +22,7 @@ python-dotenv==1.0.0
 PyYAML==6.0
 tqdm==4.66.1
 onnx==1.15.0
-xhtml2pdf
+xhtml2pdf==0.2.17
 
 # ==========================
 # NVIDIA
