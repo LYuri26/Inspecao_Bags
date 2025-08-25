@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import os
+
+os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+
 import sys
 import platform
 import subprocess
