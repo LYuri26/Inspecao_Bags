@@ -1,25 +1,44 @@
-# Versão nightly mais recente do PyTorch (use versões disponíveis)
-torch>=2.6.0
-torchvision>=0.17.0
-torchaudio>=2.6.0
---extra-index-url https://download.pytorch.org/whl/nightly/cu121
+# ==========================
+# PyTorch (fixado em 2.5.1 + cu121)
+# ==========================
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+torchaudio==2.5.1+cu121
+--extra-index-url https://download.pytorch.org/whl/cu121
 
+# ==========================
+# YOLO e visão computacional
+# ==========================
 ultralytics==8.1.0
 opencv-python-headless==4.9.0.80
 albumentations==1.4.0
 imgaug==0.4.0
 numpy==1.26.4
+
+# ==========================
+# Utilidades gerais
+# ==========================
 python-dotenv==1.0.0
 PyYAML==6.0
 tqdm==4.66.1
 onnx==1.15.0
 xhtml2pdf
+
+# ==========================
+# NVIDIA
+# ==========================
 nvidia-ml-py3==7.352.0
 pynvml==11.5.0
+
+# ==========================
+# Interface gráfica
+# ==========================
 PyQt5==5.15.10
 PyQt5-sip==12.13.0
 
+# ==========================
 # Dependências adicionais recomendadas
+# ==========================
 pillow==10.0.1
 scipy==1.11.4
 matplotlib==3.8.0
