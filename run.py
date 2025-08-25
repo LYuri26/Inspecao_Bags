@@ -53,11 +53,12 @@ def instalar_dependencias():
 
     # Atualiza pip primeiro
     try:
-        subprocess.run([str(pip_path), "install", "--upgrade", "pip"], check=True)
+        subprocess.run(
+            [str(python_path), "-m", "pip", "install", "--upgrade", "pip"], check=True
+        )
         logger.info("✅ pip atualizado com sucesso")
     except subprocess.CalledProcessError as e:
         logger.warning(f"⚠️ Falha ao atualizar pip: {e}")
-
     # Verifica se há GPU NVIDIA disponível
     has_nvidia_gpu = False
     try:
